@@ -1,5 +1,6 @@
 package mod.kelvinlby.crafter;
 
+import mod.kelvinlby.crafter.screen.SettingScreen;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
@@ -38,7 +39,9 @@ public class OpenCrafter implements ClientModInitializer {
 		registerKeybindListeners();
 	}
 
-	private void openGui() {}
+	private void openGui() {
+		mc.setScreen(new SettingScreen());
+	}
 
 	private void openChat() {}
 
