@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//tmp/net/ccbluex/liquidbounce/mcef/**)",
+      "Bash(javap *)",
+      "WebSearch",
+      "Bash(./gradlew *)",
+      "Bash(grep *)"
+    ]
+  },
+  "$version": 3
+}
