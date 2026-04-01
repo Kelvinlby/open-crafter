@@ -8,6 +8,7 @@
 		"Kelvin_LBY"
 	],
 	"contact": {
+		"homepage": "https://opencrafter.reedlab.site/",
 		"sources": "https://github.com/Kelvinlby/open-crafter"
 	},
 	"license": "GPL-3.0",
@@ -19,7 +20,6 @@
 		]
 	},
 	"mixins": [
-		"open-crafter.mixins.json"
 	],
 	"depends": {
 		"fabricloader": ">=0.18.5",
