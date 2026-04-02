@@ -27,6 +27,14 @@ dependencies {
 	modApi("net.ccbluex:mcef:3.3.0-1.21.11")
 	include("net.ccbluex:mcef:3.3.0-1.21.11")
 
+	// Apache Commons Compress for tar.xz extraction
+	include("org.apache.commons:commons-compress:1.27.1")
+	implementation("org.apache.commons:commons-compress:1.27.1")
+
+	// Gson for JSON metadata parsing
+	include("com.google.code.gson:gson:2.11.0")
+	implementation("com.google.code.gson:gson:2.11.0")
+
 }
 
 tasks.processResources {
