@@ -29,8 +29,8 @@ public class BrowserManager {
         
         // CEF switches for Linux compatibility - force software rendering
         MCEF.INSTANCE.getSettings().appendCefSwitches("--no-proxy-server");
-        MCEF.INSTANCE.getSettings().appendCefSwitches("--disable-gpu");
-        MCEF.INSTANCE.getSettings().appendCefSwitches("--disable-gpu-compositing");
+//        MCEF.INSTANCE.getSettings().appendCefSwitches("--disable-gpu");
+//        MCEF.INSTANCE.getSettings().appendCefSwitches("--disable-gpu-compositing");
         // Force software output and painting
         MCEF.INSTANCE.getSettings().appendCefSwitches("--enable-begin-frame-scheduling");
 
