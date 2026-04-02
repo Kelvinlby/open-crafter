@@ -2,7 +2,8 @@ package mod.kelvinlby.crafter;
 
 import mod.kelvinlby.crafter.browser.BrowserManager;
 import mod.kelvinlby.crafter.browser.BrowserScreen;
-import mod.kelvinlby.crafter.util.EngineDownloader;
+import mod.kelvinlby.crafter.engine.EngineDownloader;
+import mod.kelvinlby.crafter.engine.EngineProcessManager;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
@@ -34,7 +35,7 @@ public class OpenCrafter implements ClientModInitializer {
 		// Engine init
 		if (!FOLDER.toFile().exists() && !FOLDER.toFile().mkdir()) {
 			LOGGER.error("Failed to create folder {}", FOLDER);
-			return;
+			throw new RuntimeException("Failed to create folder " + FOLDER);
 		}
 
 		Path enginePath = FOLDER.resolve("engine");
@@ -44,13 +45,17 @@ public class OpenCrafter implements ClientModInitializer {
 		} else {
 			LOGGER.info("Checking for engine updates...");
 		}
-		
+
 		try {
 			EngineDownloader.ensureEngineUpToDate(FOLDER, enginePath);
 		} catch (Exception e) {
 			LOGGER.error("Failed to download/update inference engine", e);
-			return;
+			if (!enginePath.toFile().exists()) throw new RuntimeException("Failed to download engine");
 		}
+
+		// All init checks passed - start the engine process
+		EngineProcessManager.registerShutdownHook();
+		EngineProcessManager.startEngine(FOLDER);
 	}
 
 	private void onOpenSettings() {
@@ -89,6 +94,7 @@ public class OpenCrafter implements ClientModInitializer {
 		});
 		ClientLifecycleEvents.CLIENT_STOPPING.register(client -> {
 			BrowserManager.shutdown();
+			EngineProcessManager.shutdown();
 		});
 
 		ClientTickEvents.END_CLIENT_TICK.register(client -> {

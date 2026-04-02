@@ -1,4 +1,4 @@
-package mod.kelvinlby.crafter.util;
+package mod.kelvinlby.crafter.engine;
 
 import com.google.gson.Gson;
 import com.google.gson.annotations.SerializedName;
@@ -30,7 +30,7 @@ public class EngineDownloader {
      * Checks if the engine needs to be downloaded or updated.
      * Downloads/updates if necessary.
      * Uses atomic replacement to avoid corruption on failure.
-     * 
+     *
      * @param openCrafterDir The open-crafter folder (e.g. .minecraft/open-crafter)
      * @param engineDir The engine folder inside open-crafter (e.g. .minecraft/open-crafter/engine)
      */
@@ -216,7 +216,7 @@ public class EngineDownloader {
             deleteRecursive(target);
         }
         Files.createDirectories(target.getParent());
-        
+
         // Copy first (safer than rename across filesystems)
         copyDirectory(source, target);
         // Then delete source
