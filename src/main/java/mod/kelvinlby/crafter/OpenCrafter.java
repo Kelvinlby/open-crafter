@@ -59,7 +59,7 @@ public class OpenCrafter implements ClientModInitializer {
 		LOGGER.info("Open Settings key pressed");
 		if (BrowserManager.isInitialized()) {
 			MinecraftClient.getInstance().setScreen(
-					new BrowserScreen("http://localhost:5173")
+					new BrowserScreen("http://localhost:6121")
 			);
 		} else {
 			LOGGER.warn("Browser not initialized yet");
