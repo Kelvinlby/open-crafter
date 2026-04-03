@@ -2,6 +2,8 @@ package mod.kelvinlby.crafter;
 
 import mod.kelvinlby.crafter.browser.BrowserManager;
 import mod.kelvinlby.crafter.browser.BrowserScreen;
+import mod.kelvinlby.crafter.connector.GameStateProvider;
+import mod.kelvinlby.crafter.connector.SocketConnector;
 import mod.kelvinlby.crafter.engine.EngineDownloader;
 import mod.kelvinlby.crafter.engine.EngineProcessManager;
 import net.fabricmc.api.ClientModInitializer;
@@ -56,6 +58,23 @@ public class OpenCrafter implements ClientModInitializer {
 		// All init checks passed - start the engine process
 		EngineProcessManager.registerShutdownHook();
 		EngineProcessManager.startEngine(FOLDER);
+
+		// Start socket connector for external communication
+		startSocketConnector();
+	}
+
+	private void startSocketConnector() {
+		try {
+			SocketConnector.start(FOLDER);
+			GameStateProvider.registerAll();
+			
+			// Register shutdown hook for socket cleanup
+			Runtime.getRuntime().addShutdownHook(new Thread(SocketConnector::stop, "socket-connector-shutdown"));
+			
+			LOGGER.info("Socket connector initialized at {}", FOLDER.resolve("connector.socket").toAbsolutePath());
+		} catch (Exception e) {
+			LOGGER.error("Failed to start socket connector", e);
+		}
 	}
 
 	private void onOpenSettings() {
@@ -95,6 +114,7 @@ public class OpenCrafter implements ClientModInitializer {
 		ClientLifecycleEvents.CLIENT_STOPPING.register(client -> {
 			BrowserManager.shutdown();
 			EngineProcessManager.shutdown();
+			SocketConnector.stop();
 		});
 
 		ClientTickEvents.END_CLIENT_TICK.register(client -> {
