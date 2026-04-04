@@ -78,20 +78,26 @@ public class OpenCrafter implements ClientModInitializer {
 	}
 
 	private void onOpenSettings() {
-		LOGGER.info("Open Settings key pressed");
+		LOGGER.info("Open Settings");
 		if (BrowserManager.isInitialized()) {
 			MinecraftClient.getInstance().setScreen(
 					new BrowserScreen("http://localhost:6121")
 			);
-		} else {
-			LOGGER.warn("Browser not initialized yet");
-		}
-	}
+		} else if (LOGGER.isWarnEnabled()) {
+            LOGGER.warn("Failed to open settings: browser not initialized yet");
+        }
+    }
 
 	private void onStartTask() {
-		// TODO: implement start task
-		LOGGER.info("Start Task key pressed");
-	}
+		LOGGER.info("Open Chat");
+		if (BrowserManager.isInitialized()) {
+			MinecraftClient.getInstance().setScreen(
+					new BrowserScreen("http://localhost:6121/chat")
+			);
+		} else if (LOGGER.isWarnEnabled()) {
+            LOGGER.warn("Failed to open chat: browser not initialized yet");
+        }
+    }
 
 	private void initKeybind() {
 		openSettingsKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
