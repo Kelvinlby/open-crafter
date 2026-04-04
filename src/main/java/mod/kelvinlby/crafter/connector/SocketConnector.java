@@ -1,8 +1,6 @@
 package mod.kelvinlby.crafter.connector;
 
-import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
-import com.google.gson.JsonObject;
 import mod.kelvinlby.crafter.OpenCrafter;
 import net.minecraft.client.MinecraftClient;
 
@@ -28,28 +26,29 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * Unix domain socket server for external communication.
  * <p>
  * Provides a non-blocking, multi-client socket server that listens at
- * {@code FOLDER/connector.socket} and dispatches JSON-RPC commands to registered handlers.
+ * {@code FOLDER/connector.socket} and dispatches JSON-RPC requests to the
+ * {@link CommandRegistry}.
  * </p>
- * 
- * <h3>Features:</h3>
+ *
+ * <h3>Features</h3>
  * <ul>
- *   <li>Non-blocking NIO with selector - won't block the game thread</li>
+ *   <li>Non-blocking NIO with selector — does not block the game thread</li>
  *   <li>Multiple concurrent client connections</li>
- *   <li>Thread-safe command handler registration</li>
  *   <li>Automatic socket file cleanup on shutdown</li>
- *   <li>Game thread safety - handlers scheduled on main thread when needed</li>
+ *   <li>Game-thread safety — handlers are scheduled on the main thread</li>
  * </ul>
- * 
- * <h3>Usage:</h3>
+ *
+ * <h3>Usage</h3>
  * <pre>
+ * // Register commands via CommandRegistry before or after starting
+ * CommandRegistry.register(
+ *     CommandSpec.of("get_fps").description("Current FPS").build(),
+ *     ctx -> new JsonPrimitive(MinecraftClient.getInstance().getCurrentFps())
+ * );
+ *
  * // Start the server
  * SocketConnector.start(FOLDER);
- * 
- * // Register a command handler
- * SocketConnector.registerHandler("get_fps", 0, args -> {
- *     return new JsonPrimitive(MinecraftClient.getInstance().getCurrentFps());
- * });
- * 
+ *
  * // Stop the server
  * SocketConnector.stop();
  * </pre>
@@ -65,13 +64,10 @@ public final class SocketConnector {
     private static Path socketPath;
     private static Thread serverThread;
     private static final AtomicBoolean running = new AtomicBoolean(false);
-    
-    // Command handlers registry: method name -> (handler, expectedArgCount)
-    private static final Map<String, HandlerEntry> handlers = new ConcurrentHashMap<>();
-    
+
     // Client write queues: channel -> queue of pending messages
     private static final Map<SocketChannel, LinkedBlockingQueue<String>> clientQueues = new ConcurrentHashMap<>();
-    
+
     // Connection state tracking
     private static final Map<SocketChannel, StringBuilder> receiveBuffers = new ConcurrentHashMap<>();
 
@@ -312,99 +308,53 @@ public final class SocketConnector {
 
     /**
      * Handles a single JSON-RPC request and queues the response.
+     * Dispatches to {@link CommandRegistry} after protocol-level validation.
      */
     private static void handleRequest(SocketChannel client, String message) {
         JsonRpcProtocol.RpcRequest request = JsonRpcProtocol.parseRequest(message);
-        
+
         if (request == null) {
             queueResponse(client, JsonRpcProtocol.createError(
-                JsonRpcProtocol.ERROR_PARSE, 
-                "Invalid JSON", 
-                null
-            ));
+                JsonRpcProtocol.ERROR_PARSE, "Invalid JSON", null));
             return;
         }
 
-        // Check for parse/validation errors
         if (request.hasError()) {
             queueResponse(client, JsonRpcProtocol.createError(
-                request.errorCode,
-                request.errorMessage,
-                request.id
-            ));
+                request.errorCode, request.errorMessage, request.id));
             return;
         }
 
-        // Look up handler
-        HandlerEntry entry = handlers.get(request.method);
-        
-        if (entry == null) {
-            queueResponse(client, JsonRpcProtocol.createError(
-                JsonRpcProtocol.ERROR_METHOD_NOT_FOUND,
-                "Method not found: " + request.method,
-                request.id
-            ));
-            return;
+        // Schedule on the game's main thread — all handlers may touch game state
+        MinecraftClient mc = MinecraftClient.getInstance();
+        if (mc.isOnThread()) {
+            dispatchAndRespond(client, request);
+        } else {
+            mc.execute(() -> dispatchAndRespond(client, request));
         }
-
-        // Validate argument count
-        if (entry.expectedArgCount >= 0 && request.getParamCount() != entry.expectedArgCount) {
-            queueResponse(client, JsonRpcProtocol.createError(
-                JsonRpcProtocol.ERROR_INVALID_PARAMS,
-                String.format("Expected %d arguments, got %d", entry.expectedArgCount, request.getParamCount()),
-                request.id
-            ));
-            return;
-        }
-
-        // Execute handler - schedule on main thread if it accesses game state
-        executeHandler(client, entry, request);
     }
 
     /**
-     * Executes a command handler and queues the response.
+     * Dispatches the request through {@link CommandRegistry} and queues the response.
+     * Must be called on the game main thread.
      */
-    private static void executeHandler(SocketChannel client, HandlerEntry entry, JsonRpcProtocol.RpcRequest request) {
-        MinecraftClient clientInstance = MinecraftClient.getInstance();
-        
-        // Check if we're on the main thread
-        if (clientInstance.isOnThread()) {
-            // Already on main thread - execute directly
-            JsonElement result = invokeHandler(entry.handler, request.params, request.id, client);
-            if (result != null || request.id != null) {
+    private static void dispatchAndRespond(SocketChannel client, JsonRpcProtocol.RpcRequest request) {
+        try {
+            JsonElement result = CommandRegistry.dispatch(request);
+            if (request.id != null) {
                 queueResponse(client, JsonRpcProtocol.createResponse(result, request.id));
             }
-        } else {
-            // Schedule on main thread for thread safety
-            clientInstance.execute(() -> {
-                JsonElement result = invokeHandler(entry.handler, request.params, request.id, client);
-                if (result != null || request.id != null) {
-                    queueResponse(client, JsonRpcProtocol.createResponse(result, request.id));
-                }
-            });
-        }
-    }
-
-    /**
-     * Invokes a handler and handles exceptions.
-     * Returns null for notifications (no response needed).
-     */
-    private static JsonElement invokeHandler(CommandHandler handler, JsonArray params, 
-                                              JsonElement id, SocketChannel client) {
-        try {
-            return handler.handle(params);
         } catch (CommandHandler.CommandException e) {
-            OpenCrafter.LOGGER.debug("Command error: {}", e.getMessage());
-            queueResponse(client, JsonRpcProtocol.createError(e.getCode(), e.getMessage(), id));
-            return null;
+            OpenCrafter.LOGGER.debug("Command '{}' error: {}", request.method, e.getMessage());
+            if (request.id != null) {
+                queueResponse(client, JsonRpcProtocol.createError(e.getCode(), e.getMessage(), request.id));
+            }
         } catch (Exception e) {
-            OpenCrafter.LOGGER.error("Handler exception", e);
-            queueResponse(client, JsonRpcProtocol.createError(
-                JsonRpcProtocol.ERROR_INTERNAL,
-                "Internal error: " + e.getMessage(),
-                id
-            ));
-            return null;
+            OpenCrafter.LOGGER.error("Unexpected error handling command '{}'", request.method, e);
+            if (request.id != null) {
+                queueResponse(client, JsonRpcProtocol.createError(
+                    JsonRpcProtocol.ERROR_INTERNAL, "Internal error: " + e.getMessage(), request.id));
+            }
         }
     }
 
@@ -489,33 +439,6 @@ public final class SocketConnector {
     }
 
     /**
-     * Registers a command handler.
-     *
-     * @param method the JSON-RPC method name to listen for
-     * @param expectedArgCount the expected number of arguments (-1 for variable)
-     * @param handler the handler function
-     */
-    public static void registerHandler(String method, int expectedArgCount, CommandHandler handler) {
-        handlers.put(method, new HandlerEntry(handler, expectedArgCount));
-        OpenCrafter.LOGGER.debug("Registered handler for method: {} (expected args: {})", 
-                                  method, expectedArgCount);
-    }
-
-    /**
-     * Unregisters a command handler.
-     *
-     * @param method the method name to unregister
-     * @return true if a handler was registered for this method
-     */
-    public static boolean unregisterHandler(String method) {
-        HandlerEntry removed = handlers.remove(method);
-        if (removed != null) {
-            OpenCrafter.LOGGER.debug("Unregistered handler for method: {}", method);
-        }
-        return removed != null;
-    }
-
-    /**
      * Checks if the socket server is running.
      */
     public static boolean isRunning() {
@@ -529,16 +452,4 @@ public final class SocketConnector {
         return socketPath;
     }
 
-    /**
-     * Internal class holding handler registration info.
-     */
-    private static class HandlerEntry {
-        final CommandHandler handler;
-        final int expectedArgCount;
-
-        HandlerEntry(CommandHandler handler, int expectedArgCount) {
-            this.handler = handler;
-            this.expectedArgCount = expectedArgCount;
-        }
-    }
 }

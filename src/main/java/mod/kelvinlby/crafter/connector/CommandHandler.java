@@ -1,60 +1,30 @@
 package mod.kelvinlby.crafter.connector;
 
-import com.google.gson.JsonArray;
-import com.google.gson.JsonElement;
 
 /**
- * Functional interface for handling JSON-RPC commands.
- * 
- * <p>Implementations receive JSON-RPC parameters and return a result.</p>
- * 
- * <h3>Example Usage:</h3>
+ * Holds the {@link CommandException} type used across the command system.
+ * <p>
+ * Throw {@link CommandException} from a {@link ContextHandler} to return a
+ * structured JSON-RPC error response to the caller.
+ * </p>
  * <pre>
- * // Simple handler with no args
- * CommandHandler getPosition = args -> {
- *     Vec3d pos = MinecraftClient.getInstance().player.getPos();
- *     return JsonRpcProtocol.JsonUtils.toJson(pos.toString());
- * };
- * 
- * // Handler with args
- * CommandHandler setBlock = args -> {
- *     int x = args.get(0).getAsInt();
- *     int y = args.get(1).getAsInt();
- *     int z = args.get(2).getAsInt();
- *     // ... set block logic
- *     return new JsonObject();
- * };
- * </pre>
- * 
- * <h3>Error Handling:</h3>
- * <p>Throw {@link CommandException} to return a structured error response.</p>
- * <pre>
- * CommandHandler handler = args -> {
- *     if (args.size() < 2) {
- *         throw new CommandException("Expected at least 2 arguments", -32602);
+ * ctx -> {
+ *     if (!someCondition) {
+ *         throw new CommandHandler.CommandException("Condition not met");
  *     }
- *     // ... handle command
- * };
+ *     // ...
+ * }
  * </pre>
  */
-@FunctionalInterface
-public interface CommandHandler {
+public final class CommandHandler {
 
-    /**
-     * Handles a command with the given parameters.
-     *
-     * @param params the JSON-RPC parameters array
-     * @return the result to send back (may be null for void responses)
-     * @throws CommandException to return an error response
-     * @throws Exception other exceptions will be converted to internal error responses
-     */
-    JsonElement handle(JsonArray params) throws Exception;
+    private CommandHandler() {}
 
     /**
      * Exception thrown to indicate a command handling error.
      * Creates a structured JSON-RPC error response.
      */
-    class CommandException extends Exception {
+    public static class CommandException extends Exception {
         private final int code;
         
         /**

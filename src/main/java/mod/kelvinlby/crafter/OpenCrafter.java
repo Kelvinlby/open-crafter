@@ -2,10 +2,10 @@ package mod.kelvinlby.crafter;
 
 import mod.kelvinlby.crafter.browser.BrowserManager;
 import mod.kelvinlby.crafter.browser.BrowserScreen;
-import mod.kelvinlby.crafter.connector.GameStateProvider;
 import mod.kelvinlby.crafter.connector.SocketConnector;
 import mod.kelvinlby.crafter.engine.EngineDownloader;
 import mod.kelvinlby.crafter.engine.EngineProcessManager;
+import mod.kelvinlby.crafter.registry.*;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
@@ -66,7 +66,7 @@ public class OpenCrafter implements ClientModInitializer {
 	private void startSocketConnector() {
 		try {
 			SocketConnector.start(FOLDER);
-			GameStateProvider.registerAll();
+			registerCommands();
 			
 			// Register shutdown hook for socket cleanup
 			Runtime.getRuntime().addShutdownHook(new Thread(SocketConnector::stop, "socket-connector-shutdown"));
@@ -131,5 +131,9 @@ public class OpenCrafter implements ClientModInitializer {
 				onStartTask();
 			}
 		});
+	}
+
+	private void registerCommands() {
+		Rotation.register();
 	}
 }
