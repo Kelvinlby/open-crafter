@@ -114,9 +114,7 @@ public class OpenCrafter implements ClientModInitializer {
 				CATEGORY
 		));
 
-		ClientLifecycleEvents.CLIENT_STARTED.register(client -> {
-			BrowserManager.initialize(client.runDirectory);
-		});
+		ClientLifecycleEvents.CLIENT_STARTED.register(client -> BrowserManager.initialize(client.runDirectory));
 		ClientLifecycleEvents.CLIENT_STOPPING.register(client -> {
 			BrowserManager.shutdown();
 			EngineProcessManager.shutdown();
