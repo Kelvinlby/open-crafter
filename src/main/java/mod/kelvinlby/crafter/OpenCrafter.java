@@ -110,7 +110,7 @@ public class OpenCrafter implements ClientModInitializer {
 		startTaskKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
 				"key.open-crafter.start_task",
 				InputUtil.Type.KEYSYM,
-				GLFW.GLFW_KEY_CAPS_LOCK,
+				GLFW.GLFW_KEY_LEFT_ALT,
 				CATEGORY
 		));
 
