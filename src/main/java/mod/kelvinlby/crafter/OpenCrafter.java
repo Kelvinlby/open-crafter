@@ -132,6 +132,7 @@ public class OpenCrafter implements ClientModInitializer {
 	}
 
 	private void registerCommands() {
+		Agent.register();
 		Rotation.register();
 		Chat.register();
 		Input.register();

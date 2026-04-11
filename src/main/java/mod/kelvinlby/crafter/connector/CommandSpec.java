@@ -4,6 +4,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import net.minecraft.client.MinecraftClient;
 
+import java.nio.channels.SocketChannel;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -71,7 +72,8 @@ public final class CommandSpec {
      *
      * @throws CommandHandler.CommandException if the params don't satisfy the spec
      */
-    CommandContext validate(MinecraftClient client, JsonArray rawParams) throws CommandHandler.CommandException {
+    CommandContext validate(MinecraftClient client, SocketChannel socket, JsonElement requestId,
+                            JsonArray rawParams) throws CommandHandler.CommandException {
         int given = rawParams.size();
         int total = params.size();
 
@@ -101,7 +103,7 @@ public final class CommandSpec {
             values[i] = el;
         }
 
-        return new CommandContext(client, paramNames, values);
+        return new CommandContext(client, socket, requestId, paramNames, values);
     }
 
     /** Human-readable usage string, e.g. {@code move_to <x:double> <y:double> [relative:boolean]}. */

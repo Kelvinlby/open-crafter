@@ -1,15 +1,17 @@
 package mod.kelvinlby.crafter.registry;
 
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import mod.kelvinlby.crafter.OpenCrafter;
 import mod.kelvinlby.crafter.connector.*;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.texture.NativeImage;
 import net.minecraft.client.util.ScreenshotRecorder;
+import net.minecraft.util.Util;
 
+import java.nio.channels.SocketChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.concurrent.atomic.AtomicReference;
 
 public final class Vision {
     public static void register() {
@@ -32,22 +34,31 @@ public final class Vision {
                     Files.createDirectories(cacheDir);
                     Path out = cacheDir.resolve(System.currentTimeMillis() + ".png");
 
-                    AtomicReference<Exception> err = new AtomicReference<>();
-                    ScreenshotRecorder.takeScreenshot(mc.getFramebuffer(), image -> {
-                        try (NativeImage img = image) {
-                            img.writeTo(out.toFile());
-                        } catch (Exception e) {
-                            err.set(e);
-                        }
-                    });
+                    SocketChannel socket = ctx.socket;
+                    JsonElement requestId = ctx.requestId;
 
-                    if (err.get() != null) {
-                        throw new CommandHandler.CommandException("Failed to save screenshot: " + err.get().getMessage());
-                    }
+                    // ScreenshotRecorder delivers the NativeImage on the render thread once
+                    // the GPU readback fence completes. PNG encoding is expensive, so hand
+                    // the image off to the IO worker pool to write it there. The socket
+                    // response is only sent after the IO worker finishes writing the file,
+                    // guaranteeing the path is on disk by the time the client sees it.
+                    ScreenshotRecorder.takeScreenshot(mc.getFramebuffer(), image ->
+                            Util.getIoWorkerExecutor().execute(() -> {
+                                try (NativeImage img = image) {
+                                    img.writeTo(out.toFile());
+                                } catch (Exception e) {
+                                    OpenCrafter.LOGGER.error("vision: failed to save screenshot", e);
+                                    SocketConnector.respondError(socket, requestId,
+                                            JsonRpcProtocol.ERROR_INTERNAL,
+                                            "Failed to save screenshot: " + e.getMessage());
+                                    return;
+                                }
+                                JsonObject result = new JsonObject();
+                                result.addProperty("path", out.toAbsolutePath().toString());
+                                SocketConnector.respond(socket, requestId, result);
+                            }));
 
-                    JsonObject result = new JsonObject();
-                    result.addProperty("path", out.toAbsolutePath().toString());
-                    return result;
+                    return CommandRegistry.ASYNC;
                 }
         );
     }

@@ -1,9 +1,11 @@
 package mod.kelvinlby.crafter.connector;
 
 import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
 import mod.kelvinlby.crafter.OpenCrafter;
 import net.minecraft.client.MinecraftClient;
 
+import java.nio.channels.SocketChannel;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.concurrent.ConcurrentHashMap;
@@ -49,8 +51,31 @@ import java.util.concurrent.ConcurrentHashMap;
 public final class CommandRegistry {
 
     private static final ConcurrentHashMap<String, Entry> registry = new ConcurrentHashMap<>();
+    private static final String AGENT_METHOD = "agent";
+    private static volatile boolean agentControl = false;
+
+    /**
+     * Sentinel returned by a handler to indicate it will deliver its response
+     * asynchronously via {@link SocketConnector#respond}. The dispatch pipeline
+     * skips the automatic synchronous reply when it sees this value.
+     */
+    public static final JsonElement ASYNC = new JsonObject();
 
     private CommandRegistry() {}
+
+    // -------------------------------------------------------------------------
+    // Agent control
+    // -------------------------------------------------------------------------
+
+    /** Sets whether non-agent commands are allowed to execute. */
+    public static void setAgentControl(boolean enabled) {
+        agentControl = enabled;
+    }
+
+    /** Returns {@code true} if non-agent commands are currently enabled. */
+    public static boolean isAgentControl() {
+        return agentControl;
+    }
 
     // -------------------------------------------------------------------------
     // Registration
@@ -114,7 +139,7 @@ public final class CommandRegistry {
      *                                         or handler-thrown errors
      * @throws Exception                       for unexpected handler failures
      */
-    static JsonElement dispatch(JsonRpcProtocol.RpcRequest request) throws Exception {
+    static JsonElement dispatch(SocketChannel socket, JsonRpcProtocol.RpcRequest request) throws Exception {
         Entry entry = registry.get(request.method);
         if (entry == null) {
             throw new CommandHandler.CommandException(
@@ -124,9 +149,25 @@ public final class CommandRegistry {
         }
 
         // Validate params and build a typed context — throws CommandException on failure
-        CommandContext ctx = entry.spec.validate(MinecraftClient.getInstance(), request.params);
+        CommandContext ctx = entry.spec.validate(
+            MinecraftClient.getInstance(), socket, request.id, request.params);
 
-        return entry.handler.handle(ctx);
+        // Agent control gate: when disabled, every non-agent command becomes a no-op
+        if (!agentControl && !AGENT_METHOD.equals(request.method)) {
+            OpenCrafter.LOGGER.info("Command '{}' params={} skipped (agent control off)",
+                request.method, request.params);
+            return null;
+        }
+
+        OpenCrafter.LOGGER.info("Command '{}' params={}", request.method, request.params);
+        try {
+            JsonElement result = entry.handler.handle(ctx);
+            OpenCrafter.LOGGER.info("Command '{}' ok", request.method);
+            return result;
+        } catch (CommandHandler.CommandException e) {
+            OpenCrafter.LOGGER.info("Command '{}' failed: {}", request.method, e.getMessage());
+            throw e;
+        }
     }
 
     // -------------------------------------------------------------------------

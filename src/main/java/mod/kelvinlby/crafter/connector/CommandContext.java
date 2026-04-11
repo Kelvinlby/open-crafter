@@ -5,6 +5,8 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import net.minecraft.client.MinecraftClient;
 
+import java.nio.channels.SocketChannel;
+
 /**
  * Provides typed, named access to the validated parameters of an incoming command.
  * <p>
@@ -33,12 +35,21 @@ public final class CommandContext {
     /** The shared {@link MinecraftClient} instance, fetched once per dispatch. */
     public final MinecraftClient client;
 
+    /** Socket channel the request arrived on — used by handlers that respond asynchronously. */
+    public final SocketChannel socket;
+
+    /** JSON-RPC request id, or {@code null} for notifications. */
+    public final JsonElement requestId;
+
     private final String[] names;
     private final JsonElement[] values;
 
     /** Package-private — constructed by {@link CommandRegistry} after validation. */
-    CommandContext(MinecraftClient client, String[] names, JsonElement[] values) {
+    CommandContext(MinecraftClient client, SocketChannel socket, JsonElement requestId,
+                   String[] names, JsonElement[] values) {
         this.client = client;
+        this.socket = socket;
+        this.requestId = requestId;
         this.names = names;
         this.values = values;
     }

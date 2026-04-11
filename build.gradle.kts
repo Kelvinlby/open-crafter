@@ -27,6 +27,12 @@ dependencies {
 	modApi("net.ccbluex:mcef:3.3.0-1.21.11")
 	include("net.ccbluex:mcef:3.3.0-1.21.11")
 
+	// MCEF's runtime-scoped transitive deps — not pulled in by include() automatically,
+	// so list them explicitly. Versions match okhttp 4.12.0's declared requires.
+	// Kotlin stdlib is provided by the fabric-language-kotlin mod (declared in fabric.mod.json).
+	include("com.squareup.okhttp3:okhttp:4.12.0")
+	include("com.squareup.okio:okio:3.6.0")
+
 	// Apache Commons Compress for tar.xz extraction
 	include("org.apache.commons:commons-compress:1.27.1")
 	implementation("org.apache.commons:commons-compress:1.27.1")

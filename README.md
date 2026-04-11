@@ -149,3 +149,20 @@ Error response:
 ```
 
 Omit `"id"` to send a notification — no response will be returned.
+
+---
+
+## Agent control
+
+All registered commands are gated by a global agent-control flag, which defaults to **off**. While the flag is off, any command other than `agent` still validates its parameters but executes as a no-op and returns `null`. The engine must first enable control before issuing gameplay commands:
+
+```json
+{"jsonrpc":"2.0","method":"agent","params":{"control":true},"id":1}
+```
+
+Send `{"control":false}` to disable all gameplay commands again. The `agent` command itself always runs, so control can be toggled at any time.
+
+| Parameter | Type | Required | Description |
+|---|---|---|---|
+| `control` | boolean | yes | `true` enables all other commands; `false` turns them into no-ops |
+

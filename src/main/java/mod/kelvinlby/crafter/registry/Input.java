@@ -28,6 +28,16 @@ public final class Input {
     private static boolean lastAttackAsserted = false;
     private static boolean lastInteractAsserted = false;
 
+    private static boolean lastMoveFrontAsserted  = false;
+    private static boolean lastMoveBackAsserted   = false;
+    private static boolean lastMoveLeftAsserted   = false;
+    private static boolean lastMoveRightAsserted  = false;
+    private static boolean lastMoveSprintAsserted = false;
+    private static boolean lastMoveSneakAsserted  = false;
+    private static boolean lastMoveJumpAsserted   = false;
+
+    private static boolean lastAgentControl = false;
+
     private Input() {}
 
     public static void register() {
@@ -46,62 +56,113 @@ public final class Input {
         GameOptions opts = mc.options;
         if (opts == null) return;
 
-        boolean wantAttack = attackHeld || attackClickPending;
-        InputUtil.Key attackKey = KeyBindingHelper.getBoundKeyOf(opts.attackKey);
-        if (wantAttack) {
-            KeyBinding.setKeyPressed(attackKey, true);
-            KeyBinding.onKeyPressed(attackKey);
-            lastAttackAsserted = true;
-        } else if (lastAttackAsserted) {
-            KeyBinding.setKeyPressed(attackKey, false);
-            lastAttackAsserted = false;
+        boolean agentOn = CommandRegistry.isAgentControl();
+        if (!agentOn) {
+            if (lastAgentControl) {
+                releaseAll(opts);
+                lastAgentControl = false;
+            }
+            return;
         }
+        lastAgentControl = true;
+
+        lastAttackAsserted = applyClickable(
+                opts.attackKey, attackHeld, attackClickPending, lastAttackAsserted);
         attackClickPending = false;
 
-        boolean wantInteract = interactHeld || interactClickPending;
-        InputUtil.Key useKey = KeyBindingHelper.getBoundKeyOf(opts.useKey);
-        if (wantInteract) {
-            KeyBinding.setKeyPressed(useKey, true);
-            KeyBinding.onKeyPressed(useKey);
-            lastInteractAsserted = true;
-        } else if (lastInteractAsserted) {
-            KeyBinding.setKeyPressed(useKey, false);
-            lastInteractAsserted = false;
-        }
+        lastInteractAsserted = applyClickable(
+                opts.useKey, interactHeld, interactClickPending, lastInteractAsserted);
         interactClickPending = false;
 
-        applyMove(opts.forwardKey, moveFront);
-        applyMove(opts.backKey,    moveBack);
-        applyMove(opts.leftKey,    moveLeft);
-        applyMove(opts.rightKey,   moveRight);
-        applyMove(opts.sprintKey,  moveSprint);
-        applyMove(opts.sneakKey,   moveSneak);
-        applyMove(opts.jumpKey,    moveJump);
+        lastMoveFrontAsserted  = applyMove(opts.forwardKey, moveFront,  lastMoveFrontAsserted);
+        lastMoveBackAsserted   = applyMove(opts.backKey,    moveBack,   lastMoveBackAsserted);
+        lastMoveLeftAsserted   = applyMove(opts.leftKey,    moveLeft,   lastMoveLeftAsserted);
+        lastMoveRightAsserted  = applyMove(opts.rightKey,   moveRight,  lastMoveRightAsserted);
+        lastMoveSprintAsserted = applyMove(opts.sprintKey,  moveSprint, lastMoveSprintAsserted);
+        lastMoveSneakAsserted  = applyMove(opts.sneakKey,   moveSneak,  lastMoveSneakAsserted);
+        lastMoveJumpAsserted   = applyMove(opts.jumpKey,    moveJump,   lastMoveJumpAsserted);
     }
 
-    private static void applyMove(KeyBinding kb, boolean held) {
+    private static void releaseAll(GameOptions opts) {
+        attackHeld = false;
+        interactHeld = false;
+        moveFront = false;
+        moveBack = false;
+        moveLeft = false;
+        moveRight = false;
+        moveSprint = false;
+        moveSneak = false;
+        moveJump = false;
+
+        if (lastAttackAsserted) {
+            KeyBinding.setKeyPressed(KeyBindingHelper.getBoundKeyOf(opts.attackKey), false);
+        }
+        if (lastInteractAsserted) {
+            KeyBinding.setKeyPressed(KeyBindingHelper.getBoundKeyOf(opts.useKey), false);
+        }
+        lastMoveFrontAsserted  = releaseMoveIfAsserted(opts.forwardKey, lastMoveFrontAsserted);
+        lastMoveBackAsserted   = releaseMoveIfAsserted(opts.backKey,    lastMoveBackAsserted);
+        lastMoveLeftAsserted   = releaseMoveIfAsserted(opts.leftKey,    lastMoveLeftAsserted);
+        lastMoveRightAsserted  = releaseMoveIfAsserted(opts.rightKey,   lastMoveRightAsserted);
+        lastMoveSprintAsserted = releaseMoveIfAsserted(opts.sprintKey,  lastMoveSprintAsserted);
+        lastMoveSneakAsserted  = releaseMoveIfAsserted(opts.sneakKey,   lastMoveSneakAsserted);
+        lastMoveJumpAsserted   = releaseMoveIfAsserted(opts.jumpKey,    lastMoveJumpAsserted);
+
+        lastAttackAsserted = false;
+        lastInteractAsserted = false;
+    }
+
+    private static boolean applyClickable(KeyBinding kb, boolean held, boolean clickPending, boolean wasAsserted) {
         InputUtil.Key key = KeyBindingHelper.getBoundKeyOf(kb);
-        KeyBinding.setKeyPressed(key, held);
-        if (held) KeyBinding.onKeyPressed(key);
+        if (held || clickPending) {
+            KeyBinding.setKeyPressed(key, true);
+            if (!wasAsserted) {
+                KeyBinding.onKeyPressed(key);
+            }
+            return true;
+        }
+        if (wasAsserted) {
+            KeyBinding.setKeyPressed(key, false);
+        }
+        return false;
+    }
+
+    private static boolean applyMove(KeyBinding kb, boolean held, boolean wasAsserted) {
+        if (held) {
+            InputUtil.Key key = KeyBindingHelper.getBoundKeyOf(kb);
+            KeyBinding.setKeyPressed(key, true);
+            if (!wasAsserted) {
+                KeyBinding.onKeyPressed(key);
+            }
+            return true;
+        }
+        if (wasAsserted) {
+            KeyBinding.setKeyPressed(KeyBindingHelper.getBoundKeyOf(kb), false);
+        }
+        return false;
+    }
+
+    private static boolean releaseMoveIfAsserted(KeyBinding kb, boolean wasAsserted) {
+        if (wasAsserted) {
+            KeyBinding.setKeyPressed(KeyBindingHelper.getBoundKeyOf(kb), false);
+        }
+        return false;
     }
 
     private static void registerAttack() {
         CommandRegistry.register(
                 CommandSpec.of("attack")
-                        .description("Simulate a left mouse click (attack / break).")
+                        .description("Simulate a left mouse action. Omit 'hold' for a single click (key pressed for one tick). Pass hold=true/false to toggle a continuous press; repeating the same hold state is a no-op.")
                         .param(ParamDef.optional("hold", ParamType.BOOLEAN,
-                                "If true, hold until next attack call. Default: false (single click)."))
+                                "If present: true=start holding, false=stop holding. If absent: single click."))
                         .build(),
                 ctx -> {
                     if (ctx.client.player == null) {
                         throw CommandHandler.CommandException.invalidParams("Player object is null");
                     }
-                    boolean hold = ctx.getBoolean("hold", false);
-                    if (hold) {
-                        attackHeld = true;
-                        attackClickPending = false;
+                    if (ctx.has("hold")) {
+                        attackHeld = ctx.getBoolean("hold");
                     } else {
-                        attackHeld = false;
                         attackClickPending = true;
                     }
                     return null;
@@ -112,20 +173,17 @@ public final class Input {
     private static void registerInteract() {
         CommandRegistry.register(
                 CommandSpec.of("interact")
-                        .description("Simulate a right mouse click (use / interact).")
+                        .description("Simulate a right mouse action. Omit 'hold' for a single click (key pressed for one tick). Pass hold=true/false to toggle a continuous press; repeating the same hold state is a no-op.")
                         .param(ParamDef.optional("hold", ParamType.BOOLEAN,
-                                "If true, hold until next interact call. Default: false (single click)."))
+                                "If present: true=start holding, false=stop holding. If absent: single click."))
                         .build(),
                 ctx -> {
                     if (ctx.client.player == null) {
                         throw CommandHandler.CommandException.invalidParams("Player object is null");
                     }
-                    boolean hold = ctx.getBoolean("hold", false);
-                    if (hold) {
-                        interactHeld = true;
-                        interactClickPending = false;
+                    if (ctx.has("hold")) {
+                        interactHeld = ctx.getBoolean("hold");
                     } else {
-                        interactHeld = false;
                         interactClickPending = true;
                     }
                     return null;
@@ -146,30 +204,9 @@ public final class Input {
                     }
                     int slot = ctx.getInt("slot");
                     if (slot < 0 || slot > 8) {
-                        throw CommandHandler.CommandException.invalidParams(
-                                "slot must be 0-8, got " + slot);
+                        throw CommandHandler.CommandException.invalidParams("slot must be 0-8, got " + slot);
                     }
                     mc.player.getInventory().setSelectedSlot(slot);
-                    return null;
-                }
-        );
-    }
-
-    private static void registerEsc() {
-        CommandRegistry.register(
-                CommandSpec.of("esc")
-                        .description("Close any open screen until none remain.")
-                        .build(),
-                ctx -> {
-                    MinecraftClient mc = ctx.client;
-                    mc.execute(() -> {
-                        while (mc.currentScreen != null) {
-                            mc.currentScreen.close();
-                            if (mc.currentScreen != null) {
-                                mc.setScreen(null);
-                            }
-                        }
-                    });
                     return null;
                 }
         );
@@ -198,6 +235,26 @@ public final class Input {
                     moveSprint = ctx.getBoolean("sprint", false);
                     moveSneak  = ctx.getBoolean("sneak",  false);
                     moveJump   = ctx.getBoolean("jump",   false);
+                    return null;
+                }
+        );
+    }
+
+    private static void registerEsc() {
+        CommandRegistry.register(
+                CommandSpec.of("esc")
+                        .description("Close any open screen until none remain.")
+                        .build(),
+                ctx -> {
+                    MinecraftClient mc = ctx.client;
+                    mc.execute(() -> {
+                        while (mc.currentScreen != null) {
+                            mc.currentScreen.close();
+                            if (mc.currentScreen != null) {
+                                mc.setScreen(null);
+                            }
+                        }
+                    });
                     return null;
                 }
         );

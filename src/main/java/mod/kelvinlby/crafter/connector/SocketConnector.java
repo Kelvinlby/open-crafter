@@ -340,7 +340,11 @@ public final class SocketConnector {
      */
     private static void dispatchAndRespond(SocketChannel client, JsonRpcProtocol.RpcRequest request) {
         try {
-            JsonElement result = CommandRegistry.dispatch(request);
+            JsonElement result = CommandRegistry.dispatch(client, request);
+            if (result == CommandRegistry.ASYNC) {
+                // Handler will call SocketConnector.respond / respondError later.
+                return;
+            }
             if (request.id != null) {
                 queueResponse(client, JsonRpcProtocol.createResponse(result, request.id));
             }
@@ -401,6 +405,29 @@ public final class SocketConnector {
                 }
             }
         }
+    }
+
+    /**
+     * Sends a successful JSON-RPC response for a request that was handled
+     * asynchronously (the handler returned {@link CommandRegistry#ASYNC}).
+     * No-op for notifications (requestId == null).
+     */
+    public static void respond(SocketChannel client, JsonElement requestId, JsonElement result) {
+        if (client == null || requestId == null) {
+            return;
+        }
+        queueResponse(client, JsonRpcProtocol.createResponse(result, requestId));
+    }
+
+    /**
+     * Sends a JSON-RPC error response for an async handler.
+     * No-op for notifications (requestId == null).
+     */
+    public static void respondError(SocketChannel client, JsonElement requestId, int code, String message) {
+        if (client == null || requestId == null) {
+            return;
+        }
+        queueResponse(client, JsonRpcProtocol.createError(code, message, requestId));
     }
 
     /**
