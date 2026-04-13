@@ -27,19 +27,17 @@ public final class Rotation {
                         throw CommandHandler.CommandException.invalidParams("Player object is null");
                     }
 
-                    if (mc.currentScreen != null) {
-                        // Receive params by name
-                        double yaw = ctx.getDouble("yaw");
-                        double pitch = ctx.getDouble("pitch");
-                        boolean isRelative = ctx.getBoolean("is_relative", false);
+                    // Receive params by name
+                    double yaw = ctx.getDouble("yaw");
+                    double pitch = ctx.getDouble("pitch");
+                    boolean isRelative = ctx.getBoolean("is_relative", false);
 
-                        if (isRelative) {
-                            mc.player.setYaw((float) (mc.player.getYaw() + yaw));
-                            mc.player.setPitch((float) (mc.player.getPitch() + pitch));
-                        } else {
-                            mc.player.setYaw((float) yaw);
-                            mc.player.setPitch((float) pitch);
-                        }
+                    if (isRelative) {
+                        mc.player.setYaw((float) (mc.player.getYaw() + yaw));
+                        mc.player.setPitch((float) (mc.player.getPitch() + pitch));
+                    } else {
+                        mc.player.setYaw((float) yaw);
+                        mc.player.setPitch((float) pitch);
                     }
 
                     // Build the return object
