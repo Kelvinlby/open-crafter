@@ -9,6 +9,7 @@ import java.nio.channels.SocketChannel;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * Central registry for all JSON-RPC command definitions.
@@ -51,6 +52,8 @@ import java.util.concurrent.ConcurrentHashMap;
 public final class CommandRegistry {
 
     private static final ConcurrentHashMap<String, Entry> registry = new ConcurrentHashMap<>();
+    private static final CopyOnWriteArrayList<Runnable> agentStartListeners = new CopyOnWriteArrayList<>();
+    private static final CopyOnWriteArrayList<Runnable> agentStopListeners = new CopyOnWriteArrayList<>();
     private static final String AGENT_METHOD = "agent";
     private static volatile boolean agentControl = false;
 
@@ -67,14 +70,34 @@ public final class CommandRegistry {
     // Agent control
     // -------------------------------------------------------------------------
 
-    /** Sets whether non-agent commands are allowed to execute. */
+    /** Sets whether non-agent commands are allowed to execute. Fires start/stop listeners on transitions. */
     public static void setAgentControl(boolean enabled) {
+        boolean previous = agentControl;
         agentControl = enabled;
+        if (enabled == previous) return;
+        CopyOnWriteArrayList<Runnable> listeners = enabled ? agentStartListeners : agentStopListeners;
+        for (Runnable r : listeners) {
+            try {
+                r.run();
+            } catch (Throwable t) {
+                OpenCrafter.LOGGER.error("Agent {} listener threw", enabled ? "start" : "stop", t);
+            }
+        }
     }
 
     /** Returns {@code true} if non-agent commands are currently enabled. */
     public static boolean isAgentControl() {
         return agentControl;
+    }
+
+    /** Registers a callback invoked when agent control transitions from off to on. */
+    public static void onAgentStart(Runnable listener) {
+        agentStartListeners.add(listener);
+    }
+
+    /** Registers a callback invoked when agent control transitions from on to off. */
+    public static void onAgentStop(Runnable listener) {
+        agentStopListeners.add(listener);
     }
 
     // -------------------------------------------------------------------------
