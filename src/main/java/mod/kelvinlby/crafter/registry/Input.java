@@ -2,7 +2,6 @@ package mod.kelvinlby.crafter.registry;
 
 import mod.kelvinlby.crafter.OpenCrafter;
 import mod.kelvinlby.crafter.connector.*;
-import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.option.GameOptions;
@@ -11,160 +10,69 @@ import net.minecraft.client.util.InputUtil;
 
 public final class Input {
 
-    private static volatile boolean attackHeld = false;
-    private static volatile boolean interactHeld = false;
-
-    private static volatile boolean attackClickPending = false;
-    private static volatile boolean interactClickPending = false;
-
-    private static volatile boolean moveFront  = false;
-    private static volatile boolean moveBack   = false;
-    private static volatile boolean moveLeft   = false;
-    private static volatile boolean moveRight  = false;
-    private static volatile boolean moveSprint = false;
-    private static volatile boolean moveSneak  = false;
-    private static volatile boolean moveJump   = false;
-
-    private static boolean lastAttackAsserted = false;
-    private static boolean lastInteractAsserted = false;
-
-    private static boolean lastMoveFrontAsserted  = false;
-    private static boolean lastMoveBackAsserted   = false;
-    private static boolean lastMoveLeftAsserted   = false;
-    private static boolean lastMoveRightAsserted  = false;
-    private static boolean lastMoveSprintAsserted = false;
-    private static boolean lastMoveSneakAsserted  = false;
-    private static boolean lastMoveJumpAsserted   = false;
-
-    private static boolean lastAgentControl = false;
+    private static boolean attackAsserted = false;
+    private static boolean interactAsserted = false;
+    private static boolean frontAsserted = false;
+    private static boolean backAsserted = false;
+    private static boolean leftAsserted = false;
+    private static boolean rightAsserted = false;
+    private static boolean sprintAsserted = false;
+    private static boolean sneakAsserted = false;
+    private static boolean jumpAsserted = false;
 
     private Input() {}
 
     public static void register() {
-        ClientTickEvents.END_CLIENT_TICK.register(Input::onClientTick);
-
         registerAttack();
         registerInteract();
         registerSlot();
         registerMove();
         registerEsc();
 
+        CommandRegistry.onAgentStop(Input::releaseAll);
+
         OpenCrafter.LOGGER.info("Input Registry: registered 5 commands");
     }
 
-    private static void onClientTick(MinecraftClient mc) {
+    private static void releaseAll() {
+        MinecraftClient mc = MinecraftClient.getInstance();
+        if (mc == null) return;
         GameOptions opts = mc.options;
         if (opts == null) return;
-
-        boolean agentOn = CommandRegistry.isAgentControl();
-        if (!agentOn) {
-            if (lastAgentControl) {
-                releaseAll(opts);
-                lastAgentControl = false;
-            }
-            return;
-        }
-        lastAgentControl = true;
-
-        lastAttackAsserted = applyClickable(
-                opts.attackKey, attackHeld, attackClickPending, lastAttackAsserted);
-        attackClickPending = false;
-
-        lastInteractAsserted = applyClickable(
-                opts.useKey, interactHeld, interactClickPending, lastInteractAsserted);
-        interactClickPending = false;
-
-        lastMoveFrontAsserted  = applyMove(opts.forwardKey, moveFront,  lastMoveFrontAsserted);
-        lastMoveBackAsserted   = applyMove(opts.backKey,    moveBack,   lastMoveBackAsserted);
-        lastMoveLeftAsserted   = applyMove(opts.leftKey,    moveLeft,   lastMoveLeftAsserted);
-        lastMoveRightAsserted  = applyMove(opts.rightKey,   moveRight,  lastMoveRightAsserted);
-        lastMoveSprintAsserted = applyMove(opts.sprintKey,  moveSprint, lastMoveSprintAsserted);
-        lastMoveSneakAsserted  = applyMove(opts.sneakKey,   moveSneak,  lastMoveSneakAsserted);
-        lastMoveJumpAsserted   = applyMove(opts.jumpKey,    moveJump,   lastMoveJumpAsserted);
+        attackAsserted   = setKey(mc, opts.attackKey,  false, attackAsserted);
+        interactAsserted = setKey(mc, opts.useKey,     false, interactAsserted);
+        frontAsserted    = setKey(mc, opts.forwardKey, false, frontAsserted);
+        backAsserted     = setKey(mc, opts.backKey,    false, backAsserted);
+        leftAsserted     = setKey(mc, opts.leftKey,    false, leftAsserted);
+        rightAsserted    = setKey(mc, opts.rightKey,   false, rightAsserted);
+        sprintAsserted   = setKey(mc, opts.sprintKey,  false, sprintAsserted);
+        sneakAsserted    = setKey(mc, opts.sneakKey,   false, sneakAsserted);
+        jumpAsserted     = setKey(mc, opts.jumpKey,    false, jumpAsserted);
     }
 
-    private static void releaseAll(GameOptions opts) {
-        attackHeld = false;
-        interactHeld = false;
-        moveFront = false;
-        moveBack = false;
-        moveLeft = false;
-        moveRight = false;
-        moveSprint = false;
-        moveSneak = false;
-        moveJump = false;
-
-        if (lastAttackAsserted) {
-            KeyBinding.setKeyPressed(KeyBindingHelper.getBoundKeyOf(opts.attackKey), false);
-        }
-        if (lastInteractAsserted) {
-            KeyBinding.setKeyPressed(KeyBindingHelper.getBoundKeyOf(opts.useKey), false);
-        }
-        lastMoveFrontAsserted  = releaseMoveIfAsserted(opts.forwardKey, lastMoveFrontAsserted);
-        lastMoveBackAsserted   = releaseMoveIfAsserted(opts.backKey,    lastMoveBackAsserted);
-        lastMoveLeftAsserted   = releaseMoveIfAsserted(opts.leftKey,    lastMoveLeftAsserted);
-        lastMoveRightAsserted  = releaseMoveIfAsserted(opts.rightKey,   lastMoveRightAsserted);
-        lastMoveSprintAsserted = releaseMoveIfAsserted(opts.sprintKey,  lastMoveSprintAsserted);
-        lastMoveSneakAsserted  = releaseMoveIfAsserted(opts.sneakKey,   lastMoveSneakAsserted);
-        lastMoveJumpAsserted   = releaseMoveIfAsserted(opts.jumpKey,    lastMoveJumpAsserted);
-
-        lastAttackAsserted = false;
-        lastInteractAsserted = false;
-    }
-
-    private static boolean applyClickable(KeyBinding kb, boolean held, boolean clickPending, boolean wasAsserted) {
-        InputUtil.Key key = KeyBindingHelper.getBoundKeyOf(kb);
-        if (held || clickPending) {
-            KeyBinding.setKeyPressed(key, true);
-            if (!wasAsserted) {
-                KeyBinding.onKeyPressed(key);
-            }
-            return true;
-        }
-        if (wasAsserted) {
-            KeyBinding.setKeyPressed(key, false);
-        }
-        return false;
-    }
-
-    private static boolean applyMove(KeyBinding kb, boolean held, boolean wasAsserted) {
-        if (held) {
+    private static boolean setKey(MinecraftClient mc, KeyBinding kb, boolean desired, boolean asserted) {
+        if (desired == asserted) return asserted;
+        mc.execute(() -> {
             InputUtil.Key key = KeyBindingHelper.getBoundKeyOf(kb);
-            KeyBinding.setKeyPressed(key, true);
-            if (!wasAsserted) {
-                KeyBinding.onKeyPressed(key);
-            }
-            return true;
-        }
-        if (wasAsserted) {
-            KeyBinding.setKeyPressed(KeyBindingHelper.getBoundKeyOf(kb), false);
-        }
-        return false;
-    }
-
-    private static boolean releaseMoveIfAsserted(KeyBinding kb, boolean wasAsserted) {
-        if (wasAsserted) {
-            KeyBinding.setKeyPressed(KeyBindingHelper.getBoundKeyOf(kb), false);
-        }
-        return false;
+            KeyBinding.setKeyPressed(key, desired);
+            if (desired) KeyBinding.onKeyPressed(key);
+        });
+        return desired;
     }
 
     private static void registerAttack() {
         CommandRegistry.register(
                 CommandSpec.of("attack")
-                        .description("Simulate a left mouse action. Omit 'hold' for a single click (key pressed for one tick). Pass hold=true/false to toggle a continuous press; repeating the same hold state is a no-op.")
-                        .param(ParamDef.optional("hold", ParamType.BOOLEAN,
-                                "If present: true=start holding, false=stop holding. If absent: single click."))
+                        .description("Set the left-mouse (attack) key state. true=pressed, false=released.")
+                        .param(ParamDef.required("pressed", ParamType.BOOLEAN, "true=press, false=release"))
                         .build(),
                 ctx -> {
-                    if (ctx.client.player == null) {
+                    MinecraftClient mc = ctx.client;
+                    if (mc.player == null) {
                         throw CommandHandler.CommandException.invalidParams("Player object is null");
                     }
-                    if (ctx.has("hold")) {
-                        attackHeld = ctx.getBoolean("hold");
-                    } else {
-                        attackClickPending = true;
-                    }
+                    GameOptions opts = mc.options;
+                    attackAsserted = setKey(mc, opts.attackKey, ctx.getBoolean("pressed"), attackAsserted);
                     return null;
                 }
         );
@@ -173,19 +81,16 @@ public final class Input {
     private static void registerInteract() {
         CommandRegistry.register(
                 CommandSpec.of("interact")
-                        .description("Simulate a right mouse action. Omit 'hold' for a single click (key pressed for one tick). Pass hold=true/false to toggle a continuous press; repeating the same hold state is a no-op.")
-                        .param(ParamDef.optional("hold", ParamType.BOOLEAN,
-                                "If present: true=start holding, false=stop holding. If absent: single click."))
+                        .description("Set the right-mouse (use) key state. true=pressed, false=released.")
+                        .param(ParamDef.required("pressed", ParamType.BOOLEAN, "true=press, false=release"))
                         .build(),
                 ctx -> {
-                    if (ctx.client.player == null) {
+                    MinecraftClient mc = ctx.client;
+                    if (mc.player == null) {
                         throw CommandHandler.CommandException.invalidParams("Player object is null");
                     }
-                    if (ctx.has("hold")) {
-                        interactHeld = ctx.getBoolean("hold");
-                    } else {
-                        interactClickPending = true;
-                    }
+                    GameOptions opts = mc.options;
+                    interactAsserted = setKey(mc, opts.useKey, ctx.getBoolean("pressed"), interactAsserted);
                     return null;
                 }
         );
@@ -215,7 +120,7 @@ public final class Input {
     private static void registerMove() {
         CommandRegistry.register(
                 CommandSpec.of("move")
-                        .description("Set movement key state. All params optional; unset = released. Overwrites all 7 states each call; state holds until next move call.")
+                        .description("Set movement key state. All params optional; unset = released. Overwrites all 7 states each call.")
                         .param(ParamDef.optional("front",  ParamType.BOOLEAN, "Hold forward key"))
                         .param(ParamDef.optional("left",   ParamType.BOOLEAN, "Hold strafe-left key"))
                         .param(ParamDef.optional("right",  ParamType.BOOLEAN, "Hold strafe-right key"))
@@ -225,16 +130,18 @@ public final class Input {
                         .param(ParamDef.optional("jump",   ParamType.BOOLEAN, "Hold jump key"))
                         .build(),
                 ctx -> {
-                    if (ctx.client.player == null) {
+                    MinecraftClient mc = ctx.client;
+                    if (mc.player == null) {
                         throw CommandHandler.CommandException.invalidParams("Player object is null");
                     }
-                    moveFront  = ctx.getBoolean("front",  false);
-                    moveBack   = ctx.getBoolean("back",   false);
-                    moveLeft   = ctx.getBoolean("left",   false);
-                    moveRight  = ctx.getBoolean("right",  false);
-                    moveSprint = ctx.getBoolean("sprint", false);
-                    moveSneak  = ctx.getBoolean("sneak",  false);
-                    moveJump   = ctx.getBoolean("jump",   false);
+                    GameOptions opts = mc.options;
+                    frontAsserted  = setKey(mc, opts.forwardKey, ctx.getBoolean("front",  false), frontAsserted);
+                    backAsserted   = setKey(mc, opts.backKey,    ctx.getBoolean("back",   false), backAsserted);
+                    leftAsserted   = setKey(mc, opts.leftKey,    ctx.getBoolean("left",   false), leftAsserted);
+                    rightAsserted  = setKey(mc, opts.rightKey,   ctx.getBoolean("right",  false), rightAsserted);
+                    sprintAsserted = setKey(mc, opts.sprintKey,  ctx.getBoolean("sprint", false), sprintAsserted);
+                    sneakAsserted  = setKey(mc, opts.sneakKey,   ctx.getBoolean("sneak",  false), sneakAsserted);
+                    jumpAsserted   = setKey(mc, opts.jumpKey,    ctx.getBoolean("jump",   false), jumpAsserted);
                     return null;
                 }
         );
