@@ -16,8 +16,9 @@ void main() {
     await tester.pumpWidget(MyApp(settings: settings));
     await tester.pumpAndSettle();
 
-    // The navigation rail and its Setting button should be present.
+    // The navigation rail, its Setting button, and the chat FAB should be present.
     expect(find.byType(NavigationRail), findsOneWidget);
-    expect(find.byIcon(Icons.settings), findsOneWidget);
+    expect(find.byIcon(Icons.settings_outlined), findsOneWidget);
+    expect(find.byType(FloatingActionButton), findsOneWidget);
   });
 }

@@ -95,11 +95,20 @@ class _HomeShellState extends State<HomeShell> {
             // destination, hence the null selectedIndex.
             selectedIndex: _selectedIndex == _settingIndex ? null : _selectedIndex,
             labelType: NavigationRailLabelType.selected,
+            // Center the destination group in the space between the leading FAB
+            // (top) and the trailing Setting button (bottom).
+            groupAlignment: 0.0,
+            trailingAtBottom: true,
             onDestinationSelected: (int index) {
               setState(() {
                 _selectedIndex = index;
               });
             },
+            leading: FloatingActionButton(
+              tooltip: 'Chat',
+              onPressed: () {},
+              child: const Icon(Icons.chat_bubble_outline),
+            ),
             destinations: const <NavigationRailDestination>[
               NavigationRailDestination(
                 icon: Icon(Icons.home_outlined),
@@ -117,23 +126,18 @@ class _HomeShellState extends State<HomeShell> {
                 label: Text('Model'),
               ),
             ],
-            trailing: Expanded(
-              child: Align(
-                alignment: Alignment.bottomCenter,
-                child: Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: IconButton(
-                    icon: const Icon(Icons.settings_outlined),
-                    selectedIcon: const Icon(Icons.settings),
-                    isSelected: _selectedIndex == _settingIndex,
-                    tooltip: 'Setting',
-                    onPressed: () {
-                      setState(() {
-                        _selectedIndex = _settingIndex;
-                      });
-                    },
-                  ),
-                ),
+            trailing: Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: IconButton(
+                icon: const Icon(Icons.settings_outlined),
+                selectedIcon: const Icon(Icons.settings),
+                isSelected: _selectedIndex == _settingIndex,
+                tooltip: 'Setting',
+                onPressed: () {
+                  setState(() {
+                    _selectedIndex = _settingIndex;
+                  });
+                },
               ),
             ),
           ),
