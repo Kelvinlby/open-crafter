@@ -1,14 +1,24 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../models/conversation.dart';
+import '../services/conversation_store.dart';
+import '../services/dummy_model.dart';
 import '../settings/settings_service.dart';
+import '../widgets/message_pair.dart';
 
 
-/// Loading lifecycle of the Home page.
+/// Loading lifecycle of the Home page (the list pane).
 enum _Status { loading, error, ready }
+
+
+/// Load lifecycle of the right-hand detail pane for the selected conversation.
+/// Independent of [_Status]: the list can be ready while a single conversation
+/// is still loading or failed to parse.
+enum _DetailStatus { idle, loading, error, ready }
 
 
 /// Hover delay before tooltips appear, matching the navigation rail buttons
@@ -70,8 +80,33 @@ class HomePageState extends State<HomePage> {
   /// Set when the FAB is pressed while still loading; honoured once ready.
   bool _addPendingOnReady = false;
 
+  /// Load state of the detail pane for [_selected].
+  _DetailStatus _detailStatus = _DetailStatus.idle;
+  String _detailError = '';
+
+  /// Messages of the currently selected conversation. Null until a card with a
+  /// loaded payload is selected.
+  ConversationData? _activeData;
+
+  /// True while the dummy model is streaming a reply; gates the composer.
+  bool _streaming = false;
+
+  /// Cumulative text of the in-flight agent reply, rendered as the trailing
+  /// open pair while [_streaming].
+  String _streamingText = '';
+
+  /// Subscription to the active inference stream, cancelled on dispose.
+  StreamSubscription<String>? _streamSub;
+
   final TextEditingController _composerController = TextEditingController();
   final ScrollController _composerScrollController = ScrollController();
+
+  /// Scrolls the conversation list so new/streamed messages stay in view.
+  final ScrollController _conversationScrollController = ScrollController();
+
+  /// Persists conversations under the configured directory.
+  late final ConversationStore _store =
+      ConversationStore(widget.settings.conversationDir);
 
   /// Drives insert/remove animations for the conversation list.
   final GlobalKey<AnimatedListState> _listKey =
@@ -85,8 +120,10 @@ class HomePageState extends State<HomePage> {
 
   @override
   void dispose() {
+    _streamSub?.cancel();
     _composerController.dispose();
     _composerScrollController.dispose();
+    _conversationScrollController.dispose();
     super.dispose();
   }
 
@@ -151,6 +188,7 @@ class HomePageState extends State<HomePage> {
 
     if (_newItem != null) {
       setState(() => _selected = _newItem);
+      _loadDetail(_newItem!);
       return;
     }
     final Conversation item = Conversation.newItem();
@@ -166,6 +204,7 @@ class HomePageState extends State<HomePage> {
     } else {
       setState(() {});
     }
+    _loadDetail(item);
   }
 
   /// Removes the unsaved new item unless [newlySelected] *is* that item.
@@ -194,19 +233,156 @@ class HomePageState extends State<HomePage> {
   }
 
   void _selectConversation(Conversation conversation) {
+    if (identical(conversation, _selected)) return;
     // discardNewItemIfNeeded drives its own removal animation (no setState),
     // so only the selection highlight needs a rebuild here.
     discardNewItemIfNeeded(newlySelected: conversation);
     setState(() => _selected = conversation);
+    _loadDetail(conversation);
   }
 
-  /// Sends the composer text. Triggered by the Send button and Ctrl+Enter.
-  /// Wiring to actual message handling is out of scope here.
-  void _send() {
+  /// Loads the messages for [conversation] into the detail pane.
+  ///
+  /// The unsaved new item starts as an empty (ready) chat. A saved card is read
+  /// from disk; a parse/IO failure flips the pane to the error state showing the
+  /// "⚠" panel rather than crashing the list.
+  Future<void> _loadDetail(Conversation conversation) async {
+    // Any selection change ends an in-flight stream for the previous chat.
+    _streamSub?.cancel();
+    _streamSub = null;
+
+    if (conversation.isNew || conversation.filePath == null) {
+      setState(() {
+        _activeData = ConversationData.empty();
+        _detailStatus = _DetailStatus.ready;
+        _streaming = false;
+        _streamingText = '';
+      });
+      return;
+    }
+
+    final String path = conversation.filePath!;
+    setState(() {
+      _detailStatus = _DetailStatus.loading;
+      _streaming = false;
+      _streamingText = '';
+      _activeData = null;
+    });
+
+    try {
+      final ConversationData data = await _store.load(path);
+      // Guard against a newer selection having superseded this load.
+      if (!mounted || !identical(_selected, conversation)) return;
+      setState(() {
+        _activeData = data;
+        _detailStatus = _DetailStatus.ready;
+      });
+    } catch (e) {
+      if (!mounted || !identical(_selected, conversation)) return;
+      setState(() {
+        _detailError = e.toString();
+        _detailStatus = _DetailStatus.error;
+      });
+    }
+  }
+
+  /// Sends the composer text: appends the user prompt, persists, then streams a
+  /// dummy reply that is appended and persisted again when complete.
+  ///
+  /// Triggered by the Send button and Ctrl+Enter. Ignored while a reply is
+  /// streaming (the composer is also visually disabled then).
+  Future<void> _send() async {
+    if (_streaming) return;
     final String text = _composerController.text.trim();
     if (text.isEmpty) return;
-    // TODO: dispatch the message; for now just clear the composer.
+
+    final ConversationData data = _activeData ??= ConversationData.empty();
+
+    // Append the user turn and persist (first save point).
+    data.messages.add(
+      Message(role: MessageRole.user, content: text, timestamp: DateTime.now()),
+    );
+
+    final Conversation? selected = _selected;
+    String? path = selected?.filePath;
+    if (selected != null && (selected.isNew || path == null)) {
+      // First send of a brand-new conversation: give it a title/timestamp, a
+      // collision-free file, and promote the list entry to a saved card.
+      data.title ??= titleFromPrompt(text);
+      data.createdAt ??= selected.createdAt ?? DateTime.now();
+      path = _store.allocatePath(data.createdAt!);
+      _promoteNewItem(selected, filePath: path, data: data);
+    }
+
     _composerController.clear();
+    setState(() {
+      _streaming = true;
+      _streamingText = '';
+    });
+    if (path != null) {
+      await _store.save(path, data);
+    }
+    _scrollToBottom();
+
+    // Stream the dummy reply, rendering cumulative text as it arrives.
+    _streamSub = dummyInference(text).listen(
+      (String chunk) {
+        if (!mounted) return;
+        setState(() => _streamingText = chunk);
+        _scrollToBottom();
+      },
+      onDone: () async {
+        if (!mounted) return;
+        final String reply = _streamingText;
+        data.messages.add(
+          Message(
+            role: MessageRole.agent,
+            content: reply,
+            timestamp: DateTime.now(),
+          ),
+        );
+        setState(() {
+          _streaming = false;
+          _streamingText = '';
+        });
+        if (path != null) {
+          await _store.save(path, data); // Second save point.
+        }
+        _scrollToBottom();
+      },
+      cancelOnError: true,
+    );
+  }
+
+  /// Replaces the unsaved new-item card with an equivalent saved [Conversation]
+  /// (so it is no longer discarded on selection change) and clears [_newItem].
+  void _promoteNewItem(
+    Conversation item, {
+    required String filePath,
+    required ConversationData data,
+  }) {
+    final Conversation saved = Conversation(
+      filePath: filePath,
+      title: data.title,
+      createdAt: data.createdAt,
+    );
+    final int index = _conversations.indexOf(item);
+    if (index >= 0) _conversations[index] = saved;
+    if (identical(_newItem, item)) _newItem = null;
+    _selected = saved;
+  }
+
+  /// Scrolls the conversation view to the bottom after the next frame so newly
+  /// added or streamed content stays in view.
+  void _scrollToBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_conversationScrollController.hasClients) return;
+      _conversationScrollController.animateTo(
+        _conversationScrollController.position.maxScrollExtent,
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeOut,
+      );
+    });
   }
 
   @override
@@ -454,10 +630,108 @@ class HomePageState extends State<HomePage> {
             ),
           ),
         ),
-        // Conversation content area (selection rendering is out of scope here).
-        const Expanded(child: SizedBox.expand()),
+        // Conversation content area for the selected card.
+        Expanded(child: _buildConversation(context)),
         _buildComposer(context),
       ],
+    );
+  }
+
+  /// Renders the selected conversation, switching on the detail load state.
+  Widget _buildConversation(BuildContext context) {
+    switch (_detailStatus) {
+      case _DetailStatus.idle:
+        return Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Text(
+              'Select a conversation, or start a new one.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ),
+        );
+      case _DetailStatus.loading:
+        return const Center(child: CircularProgressIndicator());
+      case _DetailStatus.error:
+        return _buildDetailError(context);
+      case _DetailStatus.ready:
+        return _buildMessages(context);
+    }
+  }
+
+  /// The "⚠" panel shown when a conversation file fails to load/parse.
+  Widget _buildDetailError(BuildContext context) {
+    final ColorScheme colors = Theme.of(context).colorScheme;
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            Icon(Icons.warning_amber_rounded, size: 64, color: colors.error),
+            const SizedBox(height: 16),
+            Text(
+              'Could not load this conversation.',
+              style: Theme.of(context).textTheme.titleMedium,
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              _detailError,
+              textAlign: TextAlign.center,
+              style: TextStyle(color: colors.onSurfaceVariant),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// The scrollable list of user→agent pairs. While streaming, an extra
+  /// trailing pair shows the in-flight reply (the user prompt for it is already
+  /// the last message in [_activeData]).
+  Widget _buildMessages(BuildContext context) {
+    final ConversationData? data = _activeData;
+    final List<MessagePair> pairs = data?.pairs ?? const <MessagePair>[];
+
+    if (pairs.isEmpty && !_streaming) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Text(
+            'No messages yet. Type below to begin.',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ),
+      );
+    }
+
+    // The last pair is "open" (agent still streaming) when its user has no
+    // agent yet and a stream is running; render that one with live text.
+    final int count = pairs.length;
+    return ListView.separated(
+      controller: _conversationScrollController,
+      padding: const EdgeInsets.fromLTRB(24, 16, 24, 8),
+      itemCount: count,
+      separatorBuilder: (BuildContext context, int index) =>
+          const SizedBox(height: 16),
+      itemBuilder: (BuildContext context, int index) {
+        final MessagePair pair = pairs[index];
+        final bool isLast = index == count - 1;
+        final bool open = _streaming && isLast && pair.agent == null;
+        return MessagePairCard(
+          user: pair.user,
+          agent: pair.agent,
+          streaming: open,
+          streamingText: open ? _streamingText : null,
+        );
+      },
     );
   }
 
@@ -496,15 +770,20 @@ class HomePageState extends State<HomePage> {
                         child: TextField(
                           controller: _composerController,
                           scrollController: _composerScrollController,
+                          // Input is ignored while a reply streams in.
+                          enabled: !_streaming,
                           minLines: 1,
                           maxLines: null,
                           keyboardType: TextInputType.multiline,
                           // height: 1.0 strips the font's line leading so the
                           // gap above the first line matches the sides.
                           style: const TextStyle(height: 1.0, fontSize: 16),
-                          decoration: const InputDecoration(
-                            hintText: 'Type a message...',
-                            hintStyle: TextStyle(height: 1.0, fontSize: 16),
+                          decoration: InputDecoration(
+                            hintText: _streaming
+                                ? 'Generating response…'
+                                : 'Type a message...',
+                            hintStyle:
+                                const TextStyle(height: 1.0, fontSize: 16),
                             border: InputBorder.none,
                             isCollapsed: true,
                             contentPadding: EdgeInsets.zero,
@@ -556,7 +835,7 @@ class HomePageState extends State<HomePage> {
   /// shortcut as keycap chips after the label.
   Widget _buildSendButton(BuildContext context) {
     return FilledButton.icon(
-      onPressed: _send,
+      onPressed: _streaming ? null : _send,
       style: FilledButton.styleFrom(
         // Match the IconButton's 48x48 touch target height; shrinkWrap stops
         // Material from adding its own extra vertical tap padding on top.
