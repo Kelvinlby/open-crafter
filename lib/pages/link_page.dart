@@ -1,15 +1,15 @@
 import 'package:flutter/material.dart';
 
 
-class ConnectorPage extends StatefulWidget {
-  const ConnectorPage({super.key});
+class LinkPage extends StatefulWidget {
+  const LinkPage({super.key});
 
   @override
-  State<ConnectorPage> createState() => _ConnectorPageState();
+  State<LinkPage> createState() => _LinkPageState();
 }
 
 
-class _ConnectorPageState extends State<ConnectorPage> {
+class _LinkPageState extends State<LinkPage> {
   @override
   void initState() {
     super.initState();
@@ -24,6 +24,6 @@ class _ConnectorPageState extends State<ConnectorPage> {
 
   @override
   Widget build(BuildContext context) {
-    return const Center(child: Text('Connector'));
+    return const Center(child: Text('Link'));
   }
 }
