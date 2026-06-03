@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -12,16 +13,13 @@ import '../services/dummy_model.dart';
 import '../settings/settings_service.dart';
 import '../widgets/message_pair.dart';
 
-
 /// Loading lifecycle of the Home page (the list pane).
 enum _Status { loading, error, ready }
-
 
 /// Load lifecycle of the right-hand detail pane for the selected conversation.
 /// Independent of [_Status]: the list can be ready while a single conversation
 /// is still loading or failed to parse.
 enum _DetailStatus { idle, loading, error, ready }
-
 
 /// Hover delay before tooltips appear, matching the navigation rail buttons
 /// (see the global `TooltipThemeData` in main.dart).
@@ -41,7 +39,6 @@ const double _kToolbarGap = 4;
 /// this height so it aligns with the add/option buttons.
 const double _kIconButtonSize = 48;
 
-
 class HomePage extends StatefulWidget {
   const HomePage({super.key, required this.settings});
 
@@ -51,10 +48,10 @@ class HomePage extends StatefulWidget {
   State<HomePage> createState() => HomePageState();
 }
 
-
 /// Public so the parent shell can drive it through a [GlobalKey] — the chat FAB
 /// lives in the navigation rail and calls [addNewConversation] on this state.
-class HomePageState extends State<HomePage> {
+class HomePageState extends State<HomePage>
+    with SingleTickerProviderStateMixin {
   _Status _status = _Status.loading;
   String _errorMessage = '';
 
@@ -103,24 +100,49 @@ class HomePageState extends State<HomePage> {
   final TextEditingController _composerController = TextEditingController();
   final ScrollController _composerScrollController = ScrollController();
 
+  /// Focus of the composer text field. Drives the card's glowing outline, which
+  /// brightens while the field is focused (à la Google AI Studio).
+  final FocusNode _composerFocus = FocusNode();
+
+  /// Free-running clock for the composer's "breathing" glow. Each glow layer
+  /// reads it at a different phase/speed so the pulse shimmers rather than
+  /// throbbing in unison. Created in [initState], disposed in [dispose].
+  late final AnimationController _glowController;
+
   /// Absolute paths of files attached to the next message via the Add button.
   /// Passed to the model on send, then cleared. Not persisted to history.
   final List<String> _attachments = <String>[];
+
+  /// Measures the floating composer so the message list can reserve matching
+  /// bottom padding, letting the last message scroll clear above it.
+  final GlobalKey _composerKey = GlobalKey();
+
+  /// Latest measured composer height; seeds the list's bottom inset. Updated
+  /// after each layout via [_measureComposer].
+  double _composerHeight = 0;
 
   /// Scrolls the conversation list so new/streamed messages stay in view.
   final ScrollController _conversationScrollController = ScrollController();
 
   /// Persists conversations under the configured directory.
-  late final ConversationStore _store =
-      ConversationStore(widget.settings.conversationDir);
+  late final ConversationStore _store = ConversationStore(
+    widget.settings.conversationDir,
+  );
 
   /// Drives insert/remove animations for the conversation list.
-  final GlobalKey<AnimatedListState> _listKey =
-      GlobalKey<AnimatedListState>();
+  final GlobalKey<AnimatedListState> _listKey = GlobalKey<AnimatedListState>();
 
   @override
   void initState() {
     super.initState();
+    // Repaint the composer's glow whenever focus enters/leaves the field.
+    _composerFocus.addListener(_onComposerFocusChanged);
+    // Long, slow cycle; the glow layers sample it at different phases so the
+    // breathing never lines up into a single uniform pulse.
+    _glowController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 6),
+    )..repeat();
     _load();
   }
 
@@ -129,8 +151,29 @@ class HomePageState extends State<HomePage> {
     _streamSub?.cancel();
     _composerController.dispose();
     _composerScrollController.dispose();
+    _composerFocus.dispose();
+    _glowController.dispose();
     _conversationScrollController.dispose();
     super.dispose();
+  }
+
+  /// Rebuilds so the composer's glowing outline can animate with focus.
+  void _onComposerFocusChanged() {
+    if (mounted) setState(() {});
+  }
+
+  /// Reads the floating composer's rendered height after layout and, if it
+  /// changed, stores it so the message list can reserve matching bottom
+  /// padding. Scheduled as a post-frame callback because the size is only known
+  /// once the composer has been laid out.
+  void _measureComposer() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final double? height = _composerKey.currentContext?.size?.height;
+      if (height != null && (height - _composerHeight).abs() > 0.5) {
+        setState(() => _composerHeight = height);
+      }
+    });
   }
 
   /// Reads the conversation directory, ensures it exists, and loads the JSON
@@ -430,10 +473,7 @@ class HomePageState extends State<HomePage> {
           children: <Widget>[
             Icon(Icons.warning_amber_rounded, size: 64, color: colors.error),
             const SizedBox(height: 16),
-            Text(
-              'Error: $_errorMessage',
-              textAlign: TextAlign.center,
-            ),
+            Text('Error: $_errorMessage', textAlign: TextAlign.center),
           ],
         ),
       ),
@@ -494,9 +534,9 @@ class HomePageState extends State<HomePage> {
           setState(() {
             _listFraction = (_listFraction + details.delta.dx / totalWidth)
                 .clamp(
-              SettingsService.minConvListFraction,
-              SettingsService.maxConvListFraction,
-            );
+                  SettingsService.minConvListFraction,
+                  SettingsService.maxConvListFraction,
+                );
           });
         },
         onHorizontalDragEnd: (DragEndDetails details) {
@@ -578,18 +618,18 @@ class HomePageState extends State<HomePage> {
     final Color? cardColor = selected
         ? colors.secondaryContainer
         : disabled
-            ? colors.surfaceContainerHighest.withValues(alpha: 0.4)
-            : null;
+        ? colors.surfaceContainerHighest.withValues(alpha: 0.4)
+        : null;
     final Color? titleColor = selected
         ? colors.onSecondaryContainer
         : disabled
-            ? colors.onSurface.withValues(alpha: 0.38)
-            : null;
+        ? colors.onSurface.withValues(alpha: 0.38)
+        : null;
     final Color? subtitleColor = disabled
         ? colors.onSurface.withValues(alpha: 0.38)
         : selected
-            ? colors.onSecondaryContainer
-            : null;
+        ? colors.onSecondaryContainer
+        : null;
 
     final CurvedAnimation curved = CurvedAnimation(
       parent: animation,
@@ -640,9 +680,23 @@ class HomePageState extends State<HomePage> {
             ),
           ),
         ),
-        // Conversation content area for the selected card.
-        Expanded(child: _buildConversation(context)),
-        _buildComposer(context),
+        // Conversation content area for the selected card. The list fills the
+        // whole area down to the window bottom; the composer floats on top of
+        // it (the list's bottom padding lets the last message scroll clear of
+        // the card).
+        Expanded(
+          child: Stack(
+            children: <Widget>[
+              Positioned.fill(child: _buildConversation(context)),
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 0,
+                child: _buildComposer(context),
+              ),
+            ],
+          ),
+        ),
       ],
     );
   }
@@ -727,7 +781,9 @@ class HomePageState extends State<HomePage> {
     final int count = pairs.length;
     return ListView.separated(
       controller: _conversationScrollController,
-      padding: const EdgeInsets.fromLTRB(24, 16, 24, 8),
+      // Bottom inset clears the floating composer so the last message can
+      // scroll above it; +8 keeps a small gap between them.
+      padding: EdgeInsets.fromLTRB(24, 16, 24, _composerHeight + 8),
       itemCount: count,
       separatorBuilder: (BuildContext context, int index) =>
           const SizedBox(height: 16),
@@ -746,105 +802,183 @@ class HomePageState extends State<HomePage> {
   }
 
   Widget _buildComposer(BuildContext context) {
+    // Re-measure the composer's height each build so the list's bottom inset
+    // tracks the card as it grows/shrinks with content.
+    _measureComposer();
     return Padding(
+      key: _composerKey,
       padding: const EdgeInsets.all(24),
       child: LayoutBuilder(
         builder: (BuildContext context, BoxConstraints constraints) {
           // The input may grow with content but never past half the page.
           final double maxFieldHeight = MediaQuery.of(context).size.height / 2;
-          return Card(
-            elevation: 4,
-            clipBehavior: Clip.antiAlias,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(_kComposerRadius),
-            ),
-            // One uniform inset on all four sides wraps the whole composer.
-            child: Padding(
-              padding: const EdgeInsets.all(_kComposerPadding),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: <Widget>[
-                  // Multiline input field, with its own 12px inset on all sides.
-                  Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: ConstrainedBox(
-                      constraints: BoxConstraints(maxHeight: maxFieldHeight),
-                      // Ctrl+Enter sends; plain Enter still inserts a newline.
-                      child: CallbackShortcuts(
-                        bindings: <ShortcutActivator, VoidCallback>{
-                          const SingleActivator(
-                            LogicalKeyboardKey.enter,
-                            control: true,
-                          ): _send,
-                        },
-                        child: TextField(
-                          controller: _composerController,
-                          scrollController: _composerScrollController,
-                          // Input is ignored while a reply streams in.
-                          enabled: !_streaming,
-                          minLines: 1,
-                          maxLines: null,
-                          keyboardType: TextInputType.multiline,
-                          // height: 1.0 strips the font's line leading so the
-                          // gap above the first line matches the sides.
-                          style: const TextStyle(height: 1.0, fontSize: 16),
-                          decoration: InputDecoration(
-                            hintText: _streaming
-                                ? 'Generating response…'
-                                : 'Type a message...',
-                            hintStyle:
-                                const TextStyle(height: 1.0, fontSize: 16),
-                            border: InputBorder.none,
-                            isCollapsed: true,
-                            contentPadding: EdgeInsets.zero,
+          final ColorScheme colors = Theme.of(context).colorScheme;
+          final bool focused = _composerFocus.hasFocus;
+          // The glow breathes continuously (driven by _glowController) and
+          // brightens when focused; the layers pulse out of phase so it
+          // shimmers rather than throbbing as one. Tinted with the theme's
+          // primary colour so it tracks the seed colour.
+          return AnimatedBuilder(
+            animation: _glowController,
+            child: Card(
+              elevation: 4,
+              clipBehavior: Clip.antiAlias,
+              // Drop Card's default 4px margin so the composer's outer edges
+              // line up with the conversation cards (which use zero margin).
+              margin: EdgeInsets.zero,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(_kComposerRadius),
+                // A subtle primary-tinted border that strengthens on focus,
+                // giving the glow a crisp edge like AI Studio's.
+                side: BorderSide(
+                  color: colors.primary.withValues(alpha: focused ? 0.9 : 0.3),
+                  width: focused ? 3 : 2,
+                ),
+              ),
+              // One uniform inset on all four sides wraps the whole composer.
+              child: Padding(
+                padding: const EdgeInsets.all(_kComposerPadding),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    // Multiline input field, with its own 12px inset on all sides.
+                    Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(maxHeight: maxFieldHeight),
+                        // Ctrl+Enter sends; plain Enter still inserts a newline.
+                        // Ctrl+W drops the first pending attachment.
+                        child: CallbackShortcuts(
+                          bindings: <ShortcutActivator, VoidCallback>{
+                            const SingleActivator(
+                              LogicalKeyboardKey.enter,
+                              control: true,
+                            ): _send,
+                            const SingleActivator(
+                              LogicalKeyboardKey.keyW,
+                              control: true,
+                            ): _removeFirstAttachment,
+                          },
+                          child: TextField(
+                            controller: _composerController,
+                            focusNode: _composerFocus,
+                            scrollController: _composerScrollController,
+                            // Input is ignored while a reply streams in.
+                            enabled: !_streaming,
+                            minLines: 1,
+                            maxLines: null,
+                            keyboardType: TextInputType.multiline,
+                            // height: 1.0 strips the font's line leading so the
+                            // gap above the first line matches the sides.
+                            style: const TextStyle(height: 1.0, fontSize: 16),
+                            decoration: InputDecoration(
+                              hintText: _streaming
+                                  ? 'Generating response…'
+                                  : 'Type a message...',
+                              hintStyle: const TextStyle(
+                                height: 1.0,
+                                fontSize: 16,
+                              ),
+                              border: InputBorder.none,
+                              isCollapsed: true,
+                              contentPadding: EdgeInsets.zero,
+                            ),
                           ),
                         ),
                       ),
                     ),
-                  ),
-                  // Vertical gap between the field and the toolbar.
-                  const SizedBox(height: _kComposerPadding),
-                  // Toolbar: add/options on the left, Send pushed to the right.
-                  Row(
-                    children: <Widget>[
-                      Tooltip(
-                        message: 'Add',
-                        waitDuration: _kTooltipWait,
-                        // IconButton already pads the icon on all four sides.
-                        child: IconButton(
-                          icon: const Icon(Icons.add),
-                          onPressed: _streaming ? null : _pickAttachment,
-                        ),
-                      ),
-                      // Attachment chips fill the leftover width and scroll
-                      // horizontally when they overflow; the Expanded also keeps
-                      // the send button right-aligned (acting as the old Spacer
-                      // when no files are attached).
-                      Expanded(
-                        child: SingleChildScrollView(
-                          scrollDirection: Axis.horizontal,
-                          child: Row(
-                            children: <Widget>[
-                              const SizedBox(width: _kToolbarGap),
-                              for (final String path in _attachments) ...<Widget>[
-                                _buildAttachmentChip(path),
-                                const SizedBox(width: _kToolbarGap),
-                              ],
-                            ],
+                    // Vertical gap between the field and the toolbar.
+                    const SizedBox(height: _kComposerPadding),
+                    // Toolbar: add/options on the left, Send pushed to the right.
+                    Row(
+                      children: <Widget>[
+                        Tooltip(
+                          message: 'Add',
+                          waitDuration: _kTooltipWait,
+                          // IconButton already pads the icon on all four sides.
+                          child: IconButton(
+                            icon: const Icon(Icons.add),
+                            onPressed: _streaming ? null : _pickAttachment,
                           ),
                         ),
-                      ),
-                      _buildSendButton(context),
-                    ],
-                  ),
-                ],
+                        // Attachment chips fill the leftover width and scroll
+                        // horizontally when they overflow; the Expanded also keeps
+                        // the send button right-aligned (acting as the old Spacer
+                        // when no files are attached).
+                        Expanded(
+                          child: SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            child: Row(
+                              children: <Widget>[
+                                const SizedBox(width: _kToolbarGap),
+                                for (final String path
+                                    in _attachments) ...<Widget>[
+                                  _buildAttachmentChip(path),
+                                  const SizedBox(width: _kToolbarGap),
+                                ],
+                              ],
+                            ),
+                          ),
+                        ),
+                        _buildSendButton(context),
+                        // Nudge the Send button in so its gap to the card's
+                        // right edge (12 card padding + 4 = 16) reads the same
+                        // as the gap below it.
+                        const SizedBox(width: 4),
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ),
+            builder: (BuildContext context, Widget? child) {
+              return DecoratedBox(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(_kComposerRadius),
+                  boxShadow: _glowShadows(colors.primary, focused),
+                ),
+                child: child,
+              );
+            },
           );
         },
       ),
     );
   }
+
+  /// Builds the composer's breathing glow as several primary-tinted shadow
+  /// layers. Each layer samples [_glowController] at its own phase and speed,
+  /// so their pulses drift in and out of sync — the composite glow shimmers
+  /// instead of throbbing uniformly. [focused] lifts the overall intensity.
+  List<BoxShadow> _glowShadows(Color tint, bool focused) {
+    final double t = _glowController.value; // 0..1, looping
+    // Per-layer: (phase offset, cycles-per-loop, base alpha, blur, spread).
+    // Different cycle counts mean the layers never realign into one pulse.
+    const List<List<double>> layers = <List<double>>[
+      <double>[0.0, 1, 0.24, 16, 0.5],
+      <double>[0.37, 2, 0.16, 24, 1.5],
+      <double>[0.71, 3, 0.11, 12, 0.0],
+    ];
+    final double focusBoost = focused ? 1.4 : 1.0;
+    return <BoxShadow>[
+      for (final List<double> l in layers)
+        BoxShadow(
+          // sin → 0..1, offset so layers breathe independently.
+          color: tint.withValues(
+            alpha: (l[2] *
+                    focusBoost *
+                    (0.55 + 0.45 * _wave(t * l[1] + l[0])))
+                .clamp(0.0, 1.0),
+          ),
+          blurRadius: l[3] * (focused ? 1.5 : 1.0),
+          spreadRadius: l[4] * (focused ? 1.5 : 1.0),
+        ),
+    ];
+  }
+
+  /// A 0..1 sine wave for a phase in turns (1.0 == full cycle).
+  double _wave(double turns) =>
+      0.5 + 0.5 * math.sin(turns * 2 * math.pi);
 
   /// Ordinary high-emphasis send button. Sized to the same 48px height as the
   /// add/option icon buttons so its top and bottom align with them — it reads
@@ -887,6 +1021,13 @@ class HomePageState extends State<HomePage> {
     if (path == null) return;
     if (_attachments.contains(path)) return;
     setState(() => _attachments.add(path));
+  }
+
+  /// Removes the first (oldest) pending attachment, if any. Bound to Ctrl+W
+  /// while the composer is focused. No-op when nothing is attached.
+  void _removeFirstAttachment() {
+    if (_attachments.isEmpty) return;
+    setState(() => _attachments.removeAt(0));
   }
 
   /// A removable chip for one attached file: a file-type icon, the file name,
