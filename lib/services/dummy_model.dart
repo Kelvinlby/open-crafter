@@ -105,11 +105,18 @@ That's the whole loop: prompt in, markdown streamed out, saved to disk.
 ///    background.
 ///
 /// TODO(streaming): replace `dummyInference` with the real inference pipeline.
-/// Keep the `Stream<String> Function(String prompt)` shape and satisfy points
-/// 1-6 above; if so, no changes are needed in `home_page.dart` or
-/// `message_pair.dart`. The constants below (`_kWordDelay`, `_kStall*`) and the
-/// fixed `_kFixedReply` are dummy-only and can be deleted with this function.
-Stream<String> dummyInference(String prompt) async* {
+/// Keep the `Stream<String> Function(String prompt, [List<String> files])`
+/// shape and satisfy points 1-6 above; if so, no changes are needed in
+/// `home_page.dart` or `message_pair.dart`. The constants below (`_kWordDelay`,
+/// `_kStall*`) and the fixed `_kFixedReply` are dummy-only and can be deleted
+/// with this function.
+///
+/// [files] holds the absolute paths of any files attached via the composer's
+/// Add button. The dummy ignores them; a real pipeline would upload/read them.
+Stream<String> dummyInference(
+  String prompt, [
+  List<String> files = const <String>[],
+]) async* {
   // Dart's String.split discards the delimiters (even when captured), which
   // would collapse the reply into one space-/newline-free token and break the
   // markdown. Instead, walk the text keeping the whitespace runs: emit a chunk

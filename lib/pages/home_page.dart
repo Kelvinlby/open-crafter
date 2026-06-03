@@ -1,8 +1,10 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:path/path.dart' as p;
 
 import '../models/conversation.dart';
 import '../services/conversation_store.dart';
@@ -100,6 +102,10 @@ class HomePageState extends State<HomePage> {
 
   final TextEditingController _composerController = TextEditingController();
   final ScrollController _composerScrollController = ScrollController();
+
+  /// Absolute paths of files attached to the next message via the Add button.
+  /// Passed to the model on send, then cleared. Not persisted to history.
+  final List<String> _attachments = <String>[];
 
   /// Scrolls the conversation list so new/streamed messages stay in view.
   final ScrollController _conversationScrollController = ScrollController();
@@ -296,6 +302,9 @@ class HomePageState extends State<HomePage> {
     final String text = _composerController.text.trim();
     if (text.isEmpty) return;
 
+    // Snapshot the attachments for this send before the list is cleared below.
+    final List<String> files = List<String>.of(_attachments);
+
     final ConversationData data = _activeData ??= ConversationData.empty();
 
     // Append the user turn and persist (first save point).
@@ -318,6 +327,7 @@ class HomePageState extends State<HomePage> {
     setState(() {
       _streaming = true;
       _streamingText = '';
+      _attachments.clear();
     });
     if (path != null) {
       await _store.save(path, data);
@@ -325,7 +335,7 @@ class HomePageState extends State<HomePage> {
     _scrollToBottom();
 
     // Stream the dummy reply, rendering cumulative text as it arrives.
-    _streamSub = dummyInference(text).listen(
+    _streamSub = dummyInference(text, files).listen(
       (String chunk) {
         if (!mounted) return;
         setState(() => _streamingText = chunk);
@@ -803,20 +813,27 @@ class HomePageState extends State<HomePage> {
                         // IconButton already pads the icon on all four sides.
                         child: IconButton(
                           icon: const Icon(Icons.add),
-                          onPressed: () {},
+                          onPressed: _streaming ? null : _pickAttachment,
                         ),
                       ),
-                      const SizedBox(width: _kToolbarGap),
-                      Tooltip(
-                        message: 'Options',
-                        waitDuration: _kTooltipWait,
-                        child: IconButton(
-                          icon: const Icon(Icons.tune),
-                          onPressed: () {},
+                      // Attachment chips fill the leftover width and scroll
+                      // horizontally when they overflow; the Expanded also keeps
+                      // the send button right-aligned (acting as the old Spacer
+                      // when no files are attached).
+                      Expanded(
+                        child: SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: Row(
+                            children: <Widget>[
+                              const SizedBox(width: _kToolbarGap),
+                              for (final String path in _attachments) ...<Widget>[
+                                _buildAttachmentChip(path),
+                                const SizedBox(width: _kToolbarGap),
+                              ],
+                            ],
+                          ),
                         ),
                       ),
-                      // Stretch so the send button is right-aligned.
-                      const Spacer(),
                       _buildSendButton(context),
                     ],
                   ),
@@ -858,6 +875,81 @@ class HomePageState extends State<HomePage> {
         ],
       ),
     );
+  }
+
+  /// Opens a native file picker and records the chosen file as an attachment
+  /// for the next message. Mirrors the folder picker in `setting_page.dart`.
+  /// Any single file is accepted; folders are not selectable. Duplicates and
+  /// cancellation are ignored.
+  Future<void> _pickAttachment() async {
+    final FilePickerResult? result = await FilePicker.pickFiles();
+    final String? path = result?.files.single.path;
+    if (path == null) return;
+    if (_attachments.contains(path)) return;
+    setState(() => _attachments.add(path));
+  }
+
+  /// A removable chip for one attached file: a file-type icon, the file name,
+  /// and an "X" that drops it from the pending attachments.
+  Widget _buildAttachmentChip(String path) {
+    return Chip(
+      visualDensity: VisualDensity.compact,
+      avatar: Icon(_iconForFile(path), size: 18),
+      label: Text(p.basename(path)),
+      onDeleted: () => setState(() => _attachments.remove(path)),
+    );
+  }
+
+  /// Maps a file's extension to a representative Material icon, falling back to
+  /// a generic document icon for anything unrecognised.
+  IconData _iconForFile(String path) {
+    final String ext = p.extension(path).toLowerCase();
+    switch (ext) {
+      case '.png':
+      case '.jpg':
+      case '.jpeg':
+      case '.gif':
+      case '.webp':
+      case '.bmp':
+      case '.svg':
+        return Icons.image;
+      case '.mp3':
+      case '.wav':
+      case '.flac':
+      case '.aac':
+      case '.ogg':
+        return Icons.audiotrack;
+      case '.mp4':
+      case '.mov':
+      case '.avi':
+      case '.mkv':
+      case '.webm':
+        return Icons.videocam;
+      case '.dart':
+      case '.js':
+      case '.ts':
+      case '.py':
+      case '.java':
+      case '.c':
+      case '.cpp':
+      case '.h':
+      case '.go':
+      case '.rs':
+      case '.json':
+      case '.yaml':
+      case '.yml':
+      case '.html':
+      case '.css':
+        return Icons.code;
+      case '.txt':
+      case '.md':
+      case '.pdf':
+      case '.doc':
+      case '.docx':
+        return Icons.description;
+      default:
+        return Icons.insert_drive_file;
+    }
   }
 
   /// A small keycap-style chip used to render a keyboard shortcut hint, tinted
