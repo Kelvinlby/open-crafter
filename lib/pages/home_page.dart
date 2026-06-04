@@ -852,98 +852,104 @@ class HomePageState extends State<HomePage>
                 ),
               ),
               // One uniform inset on all four sides wraps the whole composer.
-              child: Padding(
-                padding: const EdgeInsets.all(_kComposerPadding),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: <Widget>[
-                    // Multiline input field, with its own 12px inset on all sides.
-                    Padding(
-                      padding: const EdgeInsets.all(12),
-                      child: ConstrainedBox(
-                        constraints: BoxConstraints(maxHeight: maxFieldHeight),
-                        // Ctrl+Enter sends; plain Enter still inserts a newline.
-                        // Ctrl+W drops the first pending attachment.
-                        child: CallbackShortcuts(
-                          bindings: <ShortcutActivator, VoidCallback>{
-                            const SingleActivator(
-                              LogicalKeyboardKey.enter,
-                              control: true,
-                            ): _send,
-                            const SingleActivator(
-                              LogicalKeyboardKey.keyW,
-                              control: true,
-                            ): _removeFirstAttachment,
-                          },
-                          child: TextField(
-                            controller: _composerController,
-                            focusNode: _composerFocus,
-                            scrollController: _composerScrollController,
-                            // Input is ignored while a reply streams in.
-                            enabled: !_streaming,
-                            minLines: 1,
-                            maxLines: null,
-                            keyboardType: TextInputType.multiline,
-                            // height: 1.0 strips the font's line leading so the
-                            // gap above the first line matches the sides.
-                            style: const TextStyle(height: 1.0, fontSize: 16),
-                            decoration: InputDecoration(
-                              hintText: _streaming
-                                  ? 'Generating response…'
-                                  : 'Type a message...',
-                              hintStyle: const TextStyle(
-                                height: 1.0,
-                                fontSize: 16,
+              // Tapping anywhere on the card's empty space focuses the input;
+              // the buttons, chips and field win the gesture arena for their
+              // own areas, so only blank regions fall through to here.
+              // translucent lets taps on the transparent padding register.
+              child: GestureDetector(
+                behavior: HitTestBehavior.translucent,
+                onTap: _composerFocus.requestFocus,
+                child: Padding(
+                  padding: const EdgeInsets.all(_kComposerPadding),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      // Multiline input field, with its own 12px inset on all sides.
+                      Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: ConstrainedBox(
+                          constraints: BoxConstraints(
+                            maxHeight: maxFieldHeight,
+                          ),
+                          // Ctrl+Enter sends; plain Enter still inserts a newline.
+                          // Ctrl+W drops the first pending attachment.
+                          child: CallbackShortcuts(
+                            bindings: <ShortcutActivator, VoidCallback>{
+                              const SingleActivator(
+                                LogicalKeyboardKey.enter,
+                                control: true,
+                              ): _send,
+                              const SingleActivator(
+                                LogicalKeyboardKey.keyW,
+                                control: true,
+                              ): _removeFirstAttachment,
+                            },
+                            child: TextField(
+                              controller: _composerController,
+                              focusNode: _composerFocus,
+                              scrollController: _composerScrollController,
+                              // Input is ignored while a reply streams in.
+                              enabled: !_streaming,
+                              minLines: 1,
+                              maxLines: null,
+                              keyboardType: TextInputType.multiline,
+                              // height: 1.0 strips the font's line leading so the
+                              // gap above the first line matches the sides.
+                              style: const TextStyle(height: 1.0, fontSize: 16),
+                              decoration: InputDecoration(
+                                hintText: _streaming
+                                    ? 'Generating response…'
+                                    : 'Type a message...',
+                                hintStyle: const TextStyle(
+                                  height: 1.0,
+                                  fontSize: 16,
+                                ),
+                                border: InputBorder.none,
+                                isCollapsed: true,
+                                contentPadding: EdgeInsets.zero,
                               ),
-                              border: InputBorder.none,
-                              isCollapsed: true,
-                              contentPadding: EdgeInsets.zero,
                             ),
                           ),
                         ),
                       ),
-                    ),
-                    // Vertical gap between the field and the toolbar.
-                    const SizedBox(height: _kComposerPadding),
-                    // Toolbar: add/options on the left, Send pushed to the right.
-                    Row(
-                      children: <Widget>[
-                        Tooltip(
-                          message: 'Add',
-                          waitDuration: _kTooltipWait,
-                          // IconButton already pads the icon on all four sides.
-                          child: IconButton(
-                            icon: const Icon(Icons.add),
-                            onPressed: _streaming ? null : _pickAttachment,
-                          ),
-                        ),
-                        // Attachment chips fill the leftover width and scroll
-                        // horizontally when they overflow; the Expanded also keeps
-                        // the send button right-aligned (acting as the old Spacer
-                        // when no files are attached).
-                        Expanded(
-                          child: SingleChildScrollView(
-                            scrollDirection: Axis.horizontal,
-                            child: Row(
-                              children: <Widget>[
-                                const SizedBox(width: _kToolbarGap),
-                                for (final String path
-                                    in _attachments) ...<Widget>[
-                                  _buildAttachmentChip(path),
-                                  const SizedBox(width: _kToolbarGap),
-                                ],
-                              ],
+                      // Vertical gap between the field and the toolbar.
+                      const SizedBox(height: _kComposerPadding),
+                      // Toolbar: add/options on the left, Send pushed to the right.
+                      Row(
+                        children: <Widget>[
+                          Tooltip(
+                            message: 'Add',
+                            waitDuration: _kTooltipWait,
+                            // IconButton already pads the icon on all four sides.
+                            child: IconButton(
+                              icon: const Icon(Icons.add),
+                              onPressed: _streaming ? null : _pickAttachment,
                             ),
                           ),
-                        ),
-                        _buildSendButton(context),
-                        // Nudge the Send button in so its gap to the card's
-                        // right edge (12 card padding + 4 = 16) reads the same
-                        // as the gap below it.
-                        const SizedBox(width: 4),
-                      ],
-                    ),
-                  ],
+                          // Attachment chips fill the leftover width and scroll
+                          // horizontally when they overflow; the Expanded also keeps
+                          // the send button right-aligned (acting as the old Spacer
+                          // when no files are attached).
+                          Expanded(
+                            child: SingleChildScrollView(
+                              scrollDirection: Axis.horizontal,
+                              child: Row(
+                                children: <Widget>[
+                                  const SizedBox(width: _kToolbarGap),
+                                  for (final String path
+                                      in _attachments) ...<Widget>[
+                                    _buildAttachmentChip(path),
+                                    const SizedBox(width: _kToolbarGap),
+                                  ],
+                                ],
+                              ),
+                            ),
+                          ),
+                          _buildSendButton(context),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -981,9 +987,7 @@ class HomePageState extends State<HomePage>
         BoxShadow(
           // sin → 0..1, offset so layers breathe independently.
           color: tint.withValues(
-            alpha: (l[2] *
-                    focusBoost *
-                    (0.55 + 0.45 * _wave(t * l[1] + l[0])))
+            alpha: (l[2] * focusBoost * (0.55 + 0.45 * _wave(t * l[1] + l[0])))
                 .clamp(0.0, 1.0),
           ),
           blurRadius: l[3] * (focused ? 1.5 : 1.0),
@@ -993,8 +997,7 @@ class HomePageState extends State<HomePage>
   }
 
   /// A 0..1 sine wave for a phase in turns (1.0 == full cycle).
-  double _wave(double turns) =>
-      0.5 + 0.5 * math.sin(turns * 2 * math.pi);
+  double _wave(double turns) => 0.5 + 0.5 * math.sin(turns * 2 * math.pi);
 
   /// Ordinary high-emphasis send button. Sized to the same 48px height as the
   /// add/option icon buttons so its top and bottom align with them — it reads
@@ -1019,9 +1022,9 @@ class HomePageState extends State<HomePage>
         children: <Widget>[
           const Text('Send', style: TextStyle(fontSize: 15)),
           const SizedBox(width: 8),
-          _buildKeycap(context, 'Ctrl'),
+          _buildKeycap(context, 'Ctrl', enabled: !_streaming),
           const SizedBox(width: 4),
-          _buildKeycap(context, 'Enter'),
+          _buildKeycap(context, 'Enter', enabled: !_streaming),
         ],
       ),
     );
@@ -1110,19 +1113,31 @@ class HomePageState extends State<HomePage>
   }
 
   /// A small keycap-style chip used to render a keyboard shortcut hint, tinted
-  /// to sit legibly on the filled button surface.
-  Widget _buildKeycap(BuildContext context, String label) {
+  /// to sit legibly on the filled button surface. When [enabled] is false it
+  /// switches to Material's disabled foreground colour so it dims in step with
+  /// the Send button's label and icon.
+  Widget _buildKeycap(
+    BuildContext context,
+    String label, {
+    bool enabled = true,
+  }) {
     final ColorScheme colors = Theme.of(context).colorScheme;
+    // Enabled keycaps sit on the filled (primary) surface, so they tint with
+    // onPrimary; disabled ones sit on Material's disabled surface, which uses
+    // onSurface @ 0.38 for foreground — match that so they read as dimmed too.
+    final Color foreground = enabled
+        ? colors.onPrimary
+        : colors.onSurface.withValues(alpha: 0.38);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6.5, vertical: 2.5),
       decoration: BoxDecoration(
-        color: colors.onPrimary.withValues(alpha: 0.18),
+        color: foreground.withValues(alpha: 0.18),
         borderRadius: BorderRadius.circular(4.5),
       ),
       child: Text(
         label,
         style: TextStyle(
-          color: colors.onPrimary,
+          color: foreground,
           fontSize: 12,
           fontWeight: FontWeight.w600,
           height: 1.0,
