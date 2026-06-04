@@ -203,12 +203,28 @@ class HomePageState extends State<HomePage>
       });
 
       if (!mounted) return;
+
+      // Default-select the most recent (top) selectable card so the detail
+      // pane shows a conversation on entry instead of the empty placeholder.
+      // Items missing a title/date sort to the bottom and are skipped.
+      Conversation? initial;
+      for (final Conversation c in loaded) {
+        if (c.isSelectable) {
+          initial = c;
+          break;
+        }
+      }
+
       setState(() {
         _conversations
           ..clear()
           ..addAll(loaded);
         _status = _Status.ready;
+        _selected = initial;
       });
+      if (initial != null) {
+        _loadDetail(initial);
+      }
 
       if (_addPendingOnReady) {
         _addPendingOnReady = false;
