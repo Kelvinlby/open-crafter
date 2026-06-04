@@ -45,6 +45,13 @@ class ConversationStore {
     final String source = await File(path).readAsString();
     return ConversationData.fromJsonString(source);
   }
+
+  /// Deletes the conversation file at [path] if it exists. Missing files are
+  /// ignored so a double-delete (or an already-removed file) is a no-op.
+  Future<void> delete(String path) async {
+    final File file = File(path);
+    if (await file.exists()) await file.delete();
+  }
 }
 
 /// Derives a short, single-line conversation title from the first prompt.

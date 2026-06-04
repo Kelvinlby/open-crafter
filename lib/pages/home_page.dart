@@ -25,6 +25,10 @@ enum _DetailStatus { idle, loading, error, ready }
 /// (see the global `TooltipThemeData` in main.dart).
 const Duration _kTooltipWait = Duration(milliseconds: 600);
 
+/// Uniform inset between the per-card trash button and the card's top, right
+/// and bottom edges.
+const double _kCardTrashInset = 8;
+
 /// Corner radius of the composer card.
 const double _kComposerRadius = 24;
 
@@ -61,6 +65,9 @@ class HomePageState extends State<HomePage>
   /// The currently selected card, if any.
   Conversation? _selected;
 
+  /// The card the mouse is currently over; drives the trash button's fade-in.
+  Conversation? _hovered;
+
   /// The unsaved item created by the FAB, if one is currently at the top.
   Conversation? _newItem;
 
@@ -75,6 +82,10 @@ class HomePageState extends State<HomePage>
   /// animation so the width tracks the cursor 1:1 instead of chasing each
   /// per-frame change (which causes flashing).
   bool _draggingDivider = false;
+
+  /// Identifies the conversation list pane so the delete SnackBar can measure
+  /// its on-screen rect and constrain itself to that column.
+  final GlobalKey _listPaneKey = GlobalKey();
 
   /// Set when the FAB is pressed while still loading; honoured once ready.
   bool _addPendingOnReady = false;
@@ -186,11 +197,28 @@ class HomePageState extends State<HomePage>
         await dir.create(recursive: true);
       }
 
+      // When auto-clean is on, conversations created before this instant are
+      // deleted on entry rather than listed. Null when the feature is off.
+      final DateTime? cutoff = widget.settings.autoCleanCutoff();
+
       final List<Conversation> loaded = <Conversation>[];
       final List<FileSystemEntity> entries = await dir.list().toList();
       for (final FileSystemEntity entity in entries) {
         if (entity is File && entity.path.toLowerCase().endsWith('.json')) {
-          loaded.add(Conversation.fromJsonFile(entity));
+          final Conversation conv = Conversation.fromJsonFile(entity);
+          // Files with no parseable date are kept; we only drop ones we can
+          // confirm are older than the cutoff.
+          if (cutoff != null &&
+              conv.createdAt != null &&
+              conv.createdAt!.isBefore(cutoff)) {
+            try {
+              await _store.delete(entity.path);
+              continue;
+            } catch (_) {
+              // A failed deletion shouldn't break loading; just list the file.
+            }
+          }
+          loaded.add(conv);
         }
       }
 
@@ -304,6 +332,156 @@ class HomePageState extends State<HomePage>
     discardNewItemIfNeeded(newlySelected: conversation);
     setState(() => _selected = conversation);
     _loadDetail(conversation);
+  }
+
+  /// Deletes [c] from the list: animates the card out, re-selects a neighbour if
+  /// it was the selected card, and (for a saved card) removes its JSON file —
+  /// deferred behind an Undo SnackBar so the deletion can be reversed.
+  Future<void> _deleteConversation(Conversation c) async {
+    final int index = _conversations.indexOf(c);
+    if (index < 0) return;
+
+    final bool wasSelected = identical(c, _selected);
+
+    // Pick the replacement selection before the list shrinks: the card just
+    // above (more recent) if any, else the new top — skipping disabled cards.
+    final Conversation? target = wasSelected
+        ? _nextSelectionAfterRemoving(index)
+        : null;
+
+    if (_hovered == c) _hovered = null;
+    if (identical(_newItem, c)) _newItem = null;
+    _conversations.removeAt(index);
+
+    // Animate the card collapsing/fading out; cards below slide up to fill in.
+    final AnimatedListState? list = _listKey.currentState;
+    if (list != null) {
+      list.removeItem(
+        index,
+        (BuildContext context, Animation<double> animation) =>
+            _buildCard(context, c, animation),
+        duration: const Duration(milliseconds: 250),
+      );
+    }
+
+    if (wasSelected) {
+      setState(() => _selected = target);
+      if (target != null) {
+        _loadDetail(target);
+      } else {
+        _resetDetailToIdle();
+      }
+    } else {
+      setState(() {}); // Refresh the (now empty?) list state.
+    }
+
+    // Unsaved new items have no file on disk, so nothing more to do (and no
+    // Undo affordance — the chat FAB recreates them trivially).
+    final String? path = c.filePath;
+    if (c.isNew || path == null) return;
+
+    // Defer the disk delete until the Undo SnackBar closes; Undo restores the
+    // card and selection without ever touching disk.
+    final ScaffoldMessengerState messenger = ScaffoldMessenger.of(context);
+    final ColorScheme colors = Theme.of(context).colorScheme;
+    messenger.clearSnackBars();
+    bool undone = false;
+    final ScaffoldFeatureController<SnackBar, SnackBarClosedReason> controller =
+        messenger.showSnackBar(
+          SnackBar(
+            behavior: SnackBarBehavior.floating,
+            margin: _listPaneMargin(),
+            backgroundColor: colors.inverseSurface,
+            // SnackBars with an action default to persist: true, which keeps
+            // them on screen forever. Force auto-dismiss after the duration.
+            persist: false,
+            duration: const Duration(seconds: 4),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
+            content: Text(
+              'Deleted "${c.title ?? 'conversation'}"',
+              style: TextStyle(color: colors.onInverseSurface),
+            ),
+            action: SnackBarAction(
+              label: 'Undo',
+              textColor: colors.inversePrimary,
+              onPressed: () {
+                undone = true;
+                _restoreConversation(c, index, wasSelected);
+              },
+            ),
+          ),
+        );
+    final SnackBarClosedReason reason = await controller.closed;
+    if (!undone && reason != SnackBarClosedReason.action) {
+      await _store.delete(path);
+    }
+  }
+
+  /// Constrains the floating delete SnackBar to the conversation list column so
+  /// it doesn't span the whole window. Measures the list pane's on-screen rect
+  /// (relative to the Scaffold, which fills the window) and turns it into a
+  /// horizontal margin. Falls back to a default 8px margin when the pane can't
+  /// be measured (e.g. collapsed), keeping the SnackBar usable either way.
+  EdgeInsets _listPaneMargin() {
+    const EdgeInsets fallback = EdgeInsets.all(8);
+    final RenderObject? box = _listPaneKey.currentContext?.findRenderObject();
+    if (box is! RenderBox || !box.hasSize || box.size.width < 80) {
+      return fallback;
+    }
+    final double left = box.localToGlobal(Offset.zero).dx;
+    final double screenWidth = MediaQuery.of(context).size.width;
+    final double right = (screenWidth - left - box.size.width).clamp(
+      0.0,
+      screenWidth,
+    );
+    return EdgeInsets.only(left: left + 8, right: right + 8, bottom: 8);
+  }
+
+  /// Returns the card that should become selected after removing the card at
+  /// [index]: the nearest selectable card above it (more recent), else the
+  /// nearest selectable card below it, or null when none remain.
+  Conversation? _nextSelectionAfterRemoving(int index) {
+    for (int i = index - 1; i >= 0; i--) {
+      if (_conversations[i].isSelectable) return _conversations[i];
+    }
+    for (int i = index + 1; i < _conversations.length; i++) {
+      if (_conversations[i].isSelectable) return _conversations[i];
+    }
+    return null;
+  }
+
+  /// Re-inserts a card removed by [_deleteConversation] (Undo): slides it back
+  /// into its original slot and restores selection if it had been selected.
+  void _restoreConversation(Conversation c, int index, bool wasSelected) {
+    if (!mounted) return;
+    final int idx = index.clamp(0, _conversations.length);
+    _conversations.insert(idx, c);
+    final AnimatedListState? list = _listKey.currentState;
+    if (list != null) {
+      list.insertItem(idx, duration: const Duration(milliseconds: 250));
+    }
+    if (wasSelected) {
+      setState(() => _selected = c);
+      _loadDetail(c);
+    } else {
+      setState(() {});
+    }
+  }
+
+  /// Returns the detail pane to its empty placeholder, cancelling any in-flight
+  /// stream. Used when the deleted card was selected and nothing remains to
+  /// select.
+  void _resetDetailToIdle() {
+    _streamSub?.cancel();
+    _streamSub = null;
+    setState(() {
+      _activeData = null;
+      _detailStatus = _DetailStatus.idle;
+      _streaming = false;
+      _streamingText = '';
+    });
   }
 
   /// Loads the messages for [conversation] into the detail pane.
@@ -519,6 +697,7 @@ class HomePageState extends State<HomePage>
                   : const Duration(milliseconds: 200),
               curve: Curves.easeInOut,
               child: SizedBox(
+                key: _listPaneKey,
                 width: listWidth,
                 child: _listVisible
                     ? _buildList(context)
@@ -652,29 +831,65 @@ class HomePageState extends State<HomePage>
       curve: Curves.easeInOut,
     );
 
+    // The trash button is revealed only while the mouse is over this card; the
+    // slot is always reserved so showing/hiding it never reflows the title.
+    final bool showDelete = identical(_hovered, c);
+
     return SizeTransition(
       sizeFactor: curved,
       alignment: Alignment.topCenter,
       child: FadeTransition(
         opacity: curved,
-        child: Card(
-          clipBehavior: Clip.antiAlias,
-          color: cardColor,
-          margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          child: ListTile(
-            selected: selected,
-            selectedTileColor: Colors.transparent,
-            title: Text(
-              titleText,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(color: titleColor),
+        child: MouseRegion(
+          onEnter: (_) => setState(() => _hovered = c),
+          onExit: (_) {
+            if (identical(_hovered, c)) setState(() => _hovered = null);
+          },
+          child: Card(
+            clipBehavior: Clip.antiAlias,
+            color: cardColor,
+            margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            child: ListTile(
+              selected: selected,
+              selectedTileColor: Colors.transparent,
+              // Drop the tile's default right/vertical content padding so the
+              // trailing button's own uniform inset (below) is the only gap to
+              // the card edges, keeping it equal on top, right and bottom.
+              contentPadding: const EdgeInsets.only(left: 16),
+              title: Text(
+                titleText,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(color: titleColor),
+              ),
+              subtitle: Text(
+                subtitleText,
+                style: TextStyle(color: subtitleColor),
+              ),
+              // The uniform padding makes this the tallest cell, so ListTile
+              // centres it flush and the inset reads equally on all sides.
+              trailing: Padding(
+                padding: const EdgeInsets.all(_kCardTrashInset),
+                child: AnimatedOpacity(
+                  opacity: showDelete ? 1 : 0,
+                  duration: const Duration(milliseconds: 120),
+                  child: IgnorePointer(
+                    ignoring: !showDelete,
+                    child: IconButton(
+                      icon: const Icon(Icons.delete_outline),
+                      tooltip: 'Delete conversation',
+                      onPressed: () => _deleteConversation(c),
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints.tightFor(
+                        width: 40,
+                        height: 40,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              onTap: c.isSelectable ? () => _selectConversation(c) : null,
             ),
-            subtitle: Text(
-              subtitleText,
-              style: TextStyle(color: subtitleColor),
-            ),
-            onTap: c.isSelectable ? () => _selectConversation(c) : null,
           ),
         ),
       ),
@@ -1016,7 +1231,7 @@ class HomePageState extends State<HomePage>
         // the chip-to-edge gap.
         padding: const EdgeInsets.symmetric(horizontal: 16),
       ),
-      icon: const Icon(Icons.send, size: 25),
+      icon: const Icon(Icons.send_rounded, size: 25),
       label: Row(
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[

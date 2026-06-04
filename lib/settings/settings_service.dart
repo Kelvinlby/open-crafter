@@ -97,6 +97,20 @@ class SettingsService {
   RetentionUnit _autoCleanUnit = defaultAutoCleanUnit;
   RetentionUnit get autoCleanUnit => _autoCleanUnit;
 
+  /// The instant before which conversations are eligible for auto-clean.
+  /// Returns null when auto-clean is disabled. [now] is injectable for tests.
+  DateTime? autoCleanCutoff([DateTime? now]) {
+    if (!_autoCleanEnabled) return null;
+    final DateTime base = now ?? DateTime.now();
+    switch (_autoCleanUnit) {
+      case RetentionUnit.days:
+        return base.subtract(Duration(days: _autoCleanValue));
+      case RetentionUnit.months:
+        return DateTime(base.year, base.month - _autoCleanValue, base.day,
+            base.hour, base.minute, base.second, base.millisecond);
+    }
+  }
+
   /// Folder where downloaded models are stored. Defaults to `<appSupport>/model`.
   String _modelDir = '';
   String get modelDir => _modelDir;
