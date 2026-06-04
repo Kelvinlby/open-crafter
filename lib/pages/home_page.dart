@@ -209,8 +209,8 @@ class HomePageState extends State<HomePage>
           // Files with no parseable date are kept; we only drop ones we can
           // confirm are older than the cutoff.
           if (cutoff != null &&
-              conv.createdAt != null &&
-              conv.createdAt!.isBefore(cutoff)) {
+              conv.updatedAt != null &&
+              conv.updatedAt!.isBefore(cutoff)) {
             try {
               await _store.delete(entity.path);
               continue;
@@ -224,10 +224,10 @@ class HomePageState extends State<HomePage>
 
       // Recent on top; items missing a date sort to the bottom.
       loaded.sort((Conversation a, Conversation b) {
-        if (a.createdAt == null && b.createdAt == null) return 0;
-        if (a.createdAt == null) return 1;
-        if (b.createdAt == null) return -1;
-        return b.createdAt!.compareTo(a.createdAt!);
+        if (a.updatedAt == null && b.updatedAt == null) return 0;
+        if (a.updatedAt == null) return 1;
+        if (b.updatedAt == null) return -1;
+        return b.updatedAt!.compareTo(a.updatedAt!);
       });
 
       if (!mounted) return;
@@ -282,6 +282,7 @@ class HomePageState extends State<HomePage>
     if (_newItem != null) {
       setState(() => _selected = _newItem);
       _loadDetail(_newItem!);
+      _focusComposer();
       return;
     }
     final Conversation item = Conversation.newItem();
@@ -298,6 +299,16 @@ class HomePageState extends State<HomePage>
       setState(() {});
     }
     _loadDetail(item);
+    _focusComposer();
+  }
+
+  /// Moves keyboard focus to the composer so the user can type straight away
+  /// after the chat FAB creates/selects a new conversation. Deferred to the
+  /// next frame because the composer may be (re)built this frame.
+  void _focusComposer() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _composerFocus.requestFocus();
+    });
   }
 
   /// Removes the unsaved new item unless [newlySelected] *is* that item.
@@ -391,6 +402,10 @@ class HomePageState extends State<HomePage>
           SnackBar(
             behavior: SnackBarBehavior.floating,
             margin: _listPaneMargin(),
+            // Material 3's default neutral SnackBar surface: a high-contrast bar
+            // (dark in light mode, light in dark mode) that's calm rather than
+            // alarming. These roles come from the active ColorScheme, so it
+            // follows the light/dark mode and seed color.
             backgroundColor: colors.inverseSurface,
             // SnackBars with an action default to persist: true, which keeps
             // them on screen forever. Force auto-dismiss after the duration.
@@ -544,20 +559,30 @@ class HomePageState extends State<HomePage>
 
     final ConversationData data = _activeData ??= ConversationData.empty();
 
+    // One interaction time, shared by the user turn and the conversation's
+    // last-interaction timestamp.
+    final DateTime now = DateTime.now();
+
     // Append the user turn and persist (first save point).
     data.messages.add(
-      Message(role: MessageRole.user, content: text, timestamp: DateTime.now()),
+      Message(role: MessageRole.user, content: text, timestamp: now),
     );
 
     final Conversation? selected = _selected;
     String? path = selected?.filePath;
     if (selected != null && (selected.isNew || path == null)) {
-      // First send of a brand-new conversation: give it a title/timestamp, a
-      // collision-free file, and promote the list entry to a saved card.
+      // First send of a brand-new conversation: give it a title, stamp it with
+      // the interaction time, allocate a collision-free file, and promote the
+      // list entry to a saved card.
       data.title ??= titleFromPrompt(text);
-      data.createdAt ??= selected.createdAt ?? DateTime.now();
-      path = _store.allocatePath(data.createdAt!);
+      data.updatedAt = now;
+      path = _store.allocatePath(now);
       _promoteNewItem(selected, filePath: path, data: data);
+    } else if (selected != null) {
+      // Continuing an existing conversation: bump its timestamp to the
+      // interaction time and float the card to the top of the list.
+      data.updatedAt = now;
+      _bumpToTop(selected, now);
     }
 
     _composerController.clear();
@@ -611,12 +636,42 @@ class HomePageState extends State<HomePage>
     final Conversation saved = Conversation(
       filePath: filePath,
       title: data.title,
-      createdAt: data.createdAt,
+      updatedAt: data.updatedAt,
     );
     final int index = _conversations.indexOf(item);
     if (index >= 0) _conversations[index] = saved;
     if (identical(_newItem, item)) _newItem = null;
     _selected = saved;
+  }
+
+  /// Replaces [old] with a copy timestamped [when] and floats it to the top of
+  /// the list, sliding the card up from its old slot, and re-selects the
+  /// relocated card. A card already at the top is just replaced in place.
+  ///
+  /// Drives its own backing-list mutation but no [setState] — the caller's
+  /// subsequent rebuild repaints the list with the bumped subtitle/order.
+  void _bumpToTop(Conversation old, DateTime when) {
+    final int index = _conversations.indexOf(old);
+    if (index < 0) return;
+    final Conversation bumped = Conversation(
+      filePath: old.filePath,
+      title: old.title,
+      updatedAt: when,
+    );
+    _conversations.removeAt(index);
+    _conversations.insert(0, bumped);
+    _selected = bumped;
+    if (identical(_hovered, old)) _hovered = bumped;
+    final AnimatedListState? list = _listKey.currentState;
+    if (list != null && index != 0) {
+      list.removeItem(
+        index,
+        (BuildContext context, Animation<double> animation) =>
+            _buildCard(context, old, animation),
+        duration: const Duration(milliseconds: 250),
+      );
+      list.insertItem(0, duration: const Duration(milliseconds: 250));
+    }
   }
 
   /// Scrolls the conversation view to the bottom after the next frame so newly
@@ -804,8 +859,8 @@ class HomePageState extends State<HomePage>
     final String titleText = c.isNew
         ? 'New conversation'
         : (c.title ?? 'No title');
-    final String subtitleText = c.createdAt != null
-        ? formatConversationDate(c.createdAt!)
+    final String subtitleText = c.updatedAt != null
+        ? formatConversationDate(c.updatedAt!)
         : 'No date';
 
     // Selected cards get a clear themed tint; disabled (non-clickable) cards

@@ -13,11 +13,12 @@ class ConversationStore {
   final String dir;
 
   /// Allocates a collision-free `conv_<utc-timestamp>.json` path for a new
-  /// conversation. The base name uses millisecond precision; if that file
-  /// already exists (e.g. two conversations started in the same millisecond),
-  /// `_2`, `_3`, … are appended until a free name is found.
-  String allocatePath(DateTime createdAt) {
-    final DateTime t = createdAt.toUtc();
+  /// conversation, stamped with [timestamp] (the first-message time). The base
+  /// name uses millisecond precision; if that file already exists (e.g. two
+  /// conversations started in the same millisecond), `_2`, `_3`, … are appended
+  /// until a free name is found.
+  String allocatePath(DateTime timestamp) {
+    final DateTime t = timestamp.toUtc();
     String two(int n) => n.toString().padLeft(2, '0');
     String three(int n) => n.toString().padLeft(3, '0');
     final String base =

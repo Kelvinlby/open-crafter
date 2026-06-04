@@ -12,7 +12,7 @@ class Conversation {
   const Conversation({
     this.filePath,
     this.title,
-    this.createdAt,
+    this.updatedAt,
     this.isNew = false,
   });
 
@@ -23,19 +23,21 @@ class Conversation {
   /// "Missing title" card).
   final String? title;
 
-  /// Creation timestamp from the JSON metadata. Null when missing/unparseable
-  /// (renders as a disabled "Missing date" card).
-  final DateTime? createdAt;
+  /// Last-interaction timestamp from the JSON metadata: set when the
+  /// conversation is created and bumped to the current time on every new
+  /// message. Drives the card subtitle and the recent-first list order. Null
+  /// when missing/unparseable (renders as a disabled "Missing date" card).
+  final DateTime? updatedAt;
 
   /// True for the in-memory item created by the chat FAB before it is saved.
   final bool isNew;
 
   /// New items are always selectable; loaded items require both fields present.
-  bool get isSelectable => isNew || (title != null && createdAt != null);
+  bool get isSelectable => isNew || (title != null && updatedAt != null);
 
   /// An unsaved conversation placeholder created from the chat FAB.
   factory Conversation.newItem() =>
-      Conversation(isNew: true, createdAt: DateTime.now());
+      Conversation(isNew: true, updatedAt: DateTime.now());
 
   /// Parses a conversation card from a JSON file following the on-disk shape:
   /// `{ "metadata": { "title": ..., "timestamp": ... }, ... }`.
@@ -46,7 +48,7 @@ class Conversation {
   /// so one bad file does not break the whole list.
   factory Conversation.fromJsonFile(File file) {
     String? title;
-    DateTime? createdAt;
+    DateTime? updatedAt;
     try {
       final dynamic decoded = jsonDecode(file.readAsStringSync());
       if (decoded is Map<String, dynamic>) {
@@ -58,7 +60,7 @@ class Conversation {
           }
           final dynamic rawTimestamp = metadata['timestamp'];
           if (rawTimestamp is String) {
-            createdAt = DateTime.tryParse(rawTimestamp);
+            updatedAt = DateTime.tryParse(rawTimestamp);
           }
         }
       }
@@ -68,7 +70,7 @@ class Conversation {
     return Conversation(
       filePath: file.path,
       title: title,
-      createdAt: createdAt,
+      updatedAt: updatedAt,
     );
   }
 }
@@ -154,11 +156,14 @@ typedef MessagePair = ({Message? user, Message? agent});
 /// errors so one bad file does not break the list), [ConversationData.fromJsonString]
 /// *propagates* malformed-JSON errors so the detail view can surface them.
 class ConversationData {
-  ConversationData({this.title, this.createdAt, List<Message>? messages})
+  ConversationData({this.title, this.updatedAt, List<Message>? messages})
       : messages = messages ?? <Message>[];
 
   String? title;
-  DateTime? createdAt;
+
+  /// Last-interaction timestamp: the conversation's creation time, bumped to
+  /// the current time on every new message. Serialised as `metadata.timestamp`.
+  DateTime? updatedAt;
   final List<Message> messages;
 
   /// An empty in-memory conversation for a freshly started (unsaved) chat.
@@ -176,13 +181,13 @@ class ConversationData {
     }
 
     String? title;
-    DateTime? createdAt;
+    DateTime? updatedAt;
     final dynamic metadata = decoded['metadata'];
     if (metadata is Map<String, dynamic>) {
       final dynamic rawTitle = metadata['title'];
       if (rawTitle is String && rawTitle.isNotEmpty) title = rawTitle;
       final dynamic rawTimestamp = metadata['timestamp'];
-      if (rawTimestamp is String) createdAt = DateTime.tryParse(rawTimestamp);
+      if (rawTimestamp is String) updatedAt = DateTime.tryParse(rawTimestamp);
     }
 
     final List<Message> messages = <Message>[];
@@ -197,7 +202,7 @@ class ConversationData {
 
     return ConversationData(
       title: title,
-      createdAt: createdAt,
+      updatedAt: updatedAt,
       messages: messages,
     );
   }
@@ -208,7 +213,7 @@ class ConversationData {
     final Map<String, dynamic> root = <String, dynamic>{
       'metadata': <String, dynamic>{
         if (title != null) 'title': title,
-        if (createdAt != null) 'timestamp': createdAt!.toUtc().toIso8601String(),
+        if (updatedAt != null) 'timestamp': updatedAt!.toUtc().toIso8601String(),
       },
       'messages': messages.map((Message m) => m.toJson()).toList(),
       'content': <dynamic>[],
