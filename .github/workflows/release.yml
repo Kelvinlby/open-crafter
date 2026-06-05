@@ -1,11 +1,13 @@
 name: Release
 
-# Manual-only pipeline. Compiles release builds for Linux, macOS and Windows and
-# uploads distributable packages as workflow artifacts. Optionally publishes a
-# draft GitHub Release with everything attached.
+# Compiles release builds for Linux, macOS and Windows and uploads distributable
+# packages as workflow artifacts (7-day retention). On manual runs it can also
+# publish a draft GitHub Release with everything attached.
 #
+# Runs on every push (commit) and on manual dispatch.
 # Builds are UNSIGNED. See packaging notes / plan for how to add code signing later.
 on:
+  push:
   workflow_dispatch:
     inputs:
       version:
@@ -20,6 +22,8 @@ on:
 
 env:
   FLUTTER_VERSION: "3.44.1"
+  # On push events the workflow_dispatch inputs are empty, so fall back to a default version.
+  RELEASE_VERSION: ${{ inputs.version || '1.0.0' }}
 
 jobs:
   build-linux:
@@ -63,12 +67,13 @@ jobs:
             dist/**/*.deb
             dist/**/*.rpm
           if-no-files-found: error
+          retention-days: 7
 
   build-macos:
     name: macOS (.app + .dmg)
     runs-on: macos-14
     env:
-      VERSION: ${{ inputs.version }}
+      VERSION: ${{ env.RELEASE_VERSION }}
     steps:
       - uses: actions/checkout@v4
 
@@ -115,6 +120,7 @@ jobs:
             open_crafter-*.dmg
             open_crafter-*-macos-app.zip
           if-no-files-found: error
+          retention-days: 7
 
   build-windows:
     name: Windows (installer .exe)
@@ -136,7 +142,7 @@ jobs:
         run: |
           choco install innosetup -y --no-progress
           & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" `
-            "/DAppVersion=${{ inputs.version }}" `
+            "/DAppVersion=${{ env.RELEASE_VERSION }}" `
             "packaging\windows\open_crafter.iss"
 
       - uses: actions/upload-artifact@v4
@@ -144,6 +150,7 @@ jobs:
           name: windows-installer
           path: packaging/windows/installer/*.exe
           if-no-files-found: error
+          retention-days: 7
 
   release:
     name: Draft GitHub Release
