@@ -35,6 +35,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Determine version
+        # .deb/.rpm versions must start with a digit, so a bare commit SHA isn't valid;
+        # fall back to 0.0.0+<sha> (digit-led, still carries the SHA) when no input is given.
+        shell: bash
+        run: |
+          if [ -n "${{ inputs.version }}" ]; then
+            echo "VERSION=${{ inputs.version }}" >> "$GITHUB_ENV"
+          else
+            echo "VERSION=0.0.0+${GITHUB_SHA::7}" >> "$GITHUB_ENV"
+          fi
+
       - name: Install Linux build dependencies
         run: |
           sudo apt-get update
@@ -60,7 +71,8 @@ jobs:
           flutter_distributor package \
             --platform linux \
             --targets deb,rpm \
-            --flutter-build-args=release
+            --flutter-build-args=release \
+            --build-name="$VERSION"
 
       - uses: actions/upload-artifact@v4
         with:

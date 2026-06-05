@@ -16,8 +16,9 @@ platforms. Artifacts are uploaded automatically and kept for **7 days**.
 Every commit pushed to `main` automatically builds all three platforms and uploads the
 artifacts (`linux-packages`, `macos-packages`, `windows-installer`), downloadable from the
 run summary for 7 days. These builds are named with the **short commit SHA** (e.g.
-`open_crafter-6bf8a27.dmg`) since no version is supplied. To produce a named, publishable
-build with a GitHub Release:
+`open_crafter-6bf8a27.dmg`) since no version is supplied. (Linux `.deb`/`.rpm` require a
+digit-led version, so they use `0.0.0+<sha>` instead.) To produce a named, publishable build
+with a GitHub Release:
 
 1. GitHub → **Actions** → **Release** → **Run workflow**.
 2. Set **version** (e.g. `1.0.0`).
