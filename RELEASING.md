@@ -1,9 +1,9 @@
 # Releasing Open Crafter
 
 Release builds are produced by the **Release** GitHub Actions workflow
-(`.github/workflows/release.yml`). It runs on **every push (commit)** and on **manual
-dispatch**, and builds **release-mode, unsigned** packages for all three desktop platforms.
-Artifacts are uploaded automatically and kept for **7 days**.
+(`.github/workflows/release.yml`). It runs on **every push (commit) to `main`** and on
+**manual dispatch**, and builds **release-mode, unsigned** packages for all three desktop
+platforms. Artifacts are uploaded automatically and kept for **7 days**.
 
 | Platform | Output | Built with |
 |----------|--------|-----------|
@@ -13,9 +13,11 @@ Artifacts are uploaded automatically and kept for **7 days**.
 
 ## How to cut a release
 
-Every commit you push automatically builds all three platforms and uploads the artifacts
-(`linux-packages`, `macos-packages`, `windows-installer`), downloadable from the run summary
-for 7 days. To produce a named, publishable build with a GitHub Release:
+Every commit pushed to `main` automatically builds all three platforms and uploads the
+artifacts (`linux-packages`, `macos-packages`, `windows-installer`), downloadable from the
+run summary for 7 days. These builds are named with the **short commit SHA** (e.g.
+`open_crafter-6bf8a27.dmg`) since no version is supplied. To produce a named, publishable
+build with a GitHub Release:
 
 1. GitHub → **Actions** → **Release** → **Run workflow**.
 2. Set **version** (e.g. `1.0.0`).
@@ -24,8 +26,8 @@ for 7 days. To produce a named, publishable build with a GitHub Release:
    private until you click *Publish* in the Releases tab.
 4. Download artifacts from the run summary.
 
-> Push builds use a default version of `1.0.0` for naming (the dispatch input only applies to
-> manual runs). The draft-release step runs on manual dispatch only.
+> Push builds use the short commit SHA for naming (the dispatch input only applies to manual
+> runs). The draft-release step runs on manual dispatch only.
 
 ## Installing the unsigned builds
 

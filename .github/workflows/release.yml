@@ -4,10 +4,11 @@ name: Release
 # packages as workflow artifacts (7-day retention). On manual runs it can also
 # publish a draft GitHub Release with everything attached.
 #
-# Runs on every push (commit) and on manual dispatch.
+# Runs on every push (commit) to main and on manual dispatch.
 # Builds are UNSIGNED. See packaging notes / plan for how to add code signing later.
 on:
   push:
+    branches: [main]
   workflow_dispatch:
     inputs:
       version:
@@ -23,9 +24,8 @@ on:
 env:
   FLUTTER_VERSION: "3.44.1"
 
-# Note: on push events the workflow_dispatch inputs are empty, so version references use
-# `${{ inputs.version || '1.0.0' }}` to fall back to a default. (A workflow-level env var
-# can't be reused here because the `env` context isn't allowed inside an `env:` block.)
+# Note: on push events the workflow_dispatch `version` input is empty, so each build job has
+# a "Determine version" step that falls back to the short commit SHA and exports VERSION.
 
 jobs:
   build-linux:
@@ -74,10 +74,18 @@ jobs:
   build-macos:
     name: macOS (.app + .dmg)
     runs-on: macos-14
-    env:
-      VERSION: ${{ inputs.version || '1.0.0' }}
     steps:
       - uses: actions/checkout@v4
+
+      - name: Determine version
+        # Use the manual `version` input if given, otherwise the short commit SHA.
+        shell: bash
+        run: |
+          if [ -n "${{ inputs.version }}" ]; then
+            echo "VERSION=${{ inputs.version }}" >> "$GITHUB_ENV"
+          else
+            echo "VERSION=${GITHUB_SHA::7}" >> "$GITHUB_ENV"
+          fi
 
       - uses: subosito/flutter-action@v2
         with:
@@ -130,6 +138,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Determine version
+        # Use the manual `version` input if given, otherwise the short commit SHA.
+        shell: bash
+        run: |
+          if [ -n "${{ inputs.version }}" ]; then
+            echo "VERSION=${{ inputs.version }}" >> "$GITHUB_ENV"
+          else
+            echo "VERSION=${GITHUB_SHA::7}" >> "$GITHUB_ENV"
+          fi
+
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
@@ -144,7 +162,7 @@ jobs:
         run: |
           choco install innosetup -y --no-progress
           & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" `
-            "/DAppVersion=${{ inputs.version || '1.0.0' }}" `
+            "/DAppVersion=${{ env.VERSION }}" `
             "packaging\windows\open_crafter.iss"
 
       - uses: actions/upload-artifact@v4
