@@ -33,7 +33,7 @@ jobs:
     # Build on an older glibc for broader runtime compatibility than ubuntu-latest (24.04).
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Determine version
         # flutter_distributor derives the .deb/.rpm version from pubspec's `version:` field,
@@ -76,7 +76,7 @@ jobs:
             --targets deb,rpm \
             --flutter-build-args=release
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
           name: linux-packages
           path: |
@@ -89,7 +89,7 @@ jobs:
     name: macOS (.app + .dmg)
     runs-on: macos-14
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Determine version
         # Use the manual `version` input if given, otherwise the short commit SHA.
@@ -137,7 +137,7 @@ jobs:
             "build/macos/Build/Products/Release/open_crafter.app" \
             "open_crafter-${VERSION}-macos-app.zip"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
           name: macos-packages
           path: |
@@ -150,7 +150,7 @@ jobs:
     name: Windows (installer .exe)
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Determine version
         # Use the manual `version` input if given, otherwise the short commit SHA.
@@ -179,7 +179,7 @@ jobs:
             "/DAppVersion=${{ env.VERSION }}" `
             "packaging\windows\open_crafter.iss"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
           name: windows-installer
           path: packaging/windows/installer/*.exe
@@ -194,7 +194,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v5
         with:
           path: artifacts
 
