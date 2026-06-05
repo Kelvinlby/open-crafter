@@ -1,0 +1,17 @@
+display_name: Open Crafter
+package_name: open-crafter
+description: Inference Engine for General Embodied World Models.
+generic_name: Open Crafter
+keywords:
+  - Inference
+  - World Models
+categories:
+  - Utility
+  - Science
+icon: linux/packaging/open_crafter.png
+license: Proprietary
+url: https://github.com/kelvinlby/open-crafter
+release: 1
+requires:
+  - gtk3
+  - xz-libs

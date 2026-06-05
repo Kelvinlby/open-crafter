@@ -33,6 +33,10 @@ migrate_working_dir/
 /build/
 /coverage/
 
+# Packaging output (flutter_distributor / Inno Setup)
+/dist/
+/packaging/windows/installer/
+
 # Symbolication related
 app.*.symbols
 

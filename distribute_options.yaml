@@ -1,0 +1,15 @@
+# flutter_distributor configuration.
+# Used by the GitHub Actions release workflow to package Linux .deb and .rpm.
+# Per-target metadata lives in linux/packaging/<deb|rpm>/make_config.yaml.
+output: dist/
+releases:
+  - name: linux
+    jobs:
+      - name: release-linux-deb
+        package:
+          platform: linux
+          target: deb
+      - name: release-linux-rpm
+        package:
+          platform: linux
+          target: rpm
