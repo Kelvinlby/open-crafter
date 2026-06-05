@@ -36,15 +36,18 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Determine version
-        # .deb/.rpm versions must start with a digit, so a bare commit SHA isn't valid;
-        # fall back to 0.0.0+<sha> (digit-led, still carries the SHA) when no input is given.
+        # flutter_distributor derives the .deb/.rpm version from pubspec's `version:` field,
+        # so override it here. Those formats must start with a digit, so a bare commit SHA
+        # isn't valid; fall back to 0.0.0+<sha> (digit-led, still carries the SHA).
         shell: bash
         run: |
           if [ -n "${{ inputs.version }}" ]; then
-            echo "VERSION=${{ inputs.version }}" >> "$GITHUB_ENV"
+            VERSION="${{ inputs.version }}"
           else
-            echo "VERSION=0.0.0+${GITHUB_SHA::7}" >> "$GITHUB_ENV"
+            VERSION="0.0.0+${GITHUB_SHA::7}"
           fi
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          sed -i "s/^version: .*/version: $VERSION/" pubspec.yaml
 
       - name: Install Linux build dependencies
         run: |
@@ -71,8 +74,7 @@ jobs:
           flutter_distributor package \
             --platform linux \
             --targets deb,rpm \
-            --flutter-build-args=release \
-            --build-name="$VERSION"
+            --flutter-build-args=release
 
       - uses: actions/upload-artifact@v4
         with:
