@@ -35,6 +35,7 @@ Inference Engine for General Embodied World Models
 | **macOS** (Apple Silicon, M1 or newer) | arm64 | `open_crafter-<ver>.app.zip` | Unzip, move `Open Crafter.app` to **Applications**, then **right-click → Open** the first time (or run `xattr -dr com.apple.quarantine "/Applications/Open Crafter.app"`). |
 | **Debian / Ubuntu / Mint / Pop!_OS** | x86_64 | `open-crafter-<ver>-*.deb` | `sudo apt install ./open-crafter-*.deb` |
 | **Fedora / RHEL / openSUSE** | x86_64 | `open-crafter-<ver>-*.rpm` | `sudo dnf install ./open-crafter-*.rpm` |
+| **Other Linux / custom install** | x86_64 | `open_crafter-<ver>-linux-x64.tar.xz` | Extract anywhere, then run `open_crafter/open_crafter`. Needs GTK 3 and liblzma installed. |
 
 ### Platform support
 

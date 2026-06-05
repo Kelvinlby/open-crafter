@@ -7,7 +7,7 @@ platforms. Artifacts are uploaded automatically and kept for **7 days**.
 
 | Platform | Output | Built with |
 |----------|--------|-----------|
-| Linux    | `.deb` + `.rpm` | `flutter_distributor` (Ubuntu 22.04 runner) |
+| Linux    | `.deb` + `.rpm` + `.tar.xz` | `flutter_distributor` + raw bundle (Ubuntu 22.04 runner) |
 | macOS    | `.app` (zipped) | ad-hoc signed |
 | Windows  | `.exe` installer | Inno Setup |
 
@@ -40,7 +40,8 @@ To produce a named, publishable build with a GitHub Release:
 ## Installing the unsigned builds
 
 - **Linux** — `sudo dpkg -i open-crafter*.deb` (Debian/Ubuntu) or
-  `sudo dnf install ./open-crafter*.rpm` (Fedora/RHEL).
+  `sudo dnf install ./open-crafter*.rpm` (Fedora/RHEL). For a custom install, extract
+  `open_crafter-*-linux-x64.tar.xz` and run `open_crafter/open_crafter` (needs GTK 3 + liblzma).
 - **macOS** — unzip to get `Open Crafter.app` and move it to Applications. First
   launch: right-click → **Open**, or run
   `xattr -dr com.apple.quarantine "/Applications/Open Crafter.app"`. (Unsigned/not notarized,

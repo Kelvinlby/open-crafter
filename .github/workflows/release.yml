@@ -78,6 +78,18 @@ jobs:
             --targets deb,rpm \
             --flutter-build-args=release
 
+      - name: Pack raw binary (tar.xz)
+        # The plain Flutter bundle for custom installs / unsupported distros (no packaging).
+        # cp -a preserves the executable bit and the lib symlinks; staged under a top-level
+        # open_crafter/ dir so it extracts cleanly.
+        shell: bash
+        run: |
+          tarball="open_crafter-${VERSION}-linux-x64.tar.xz"
+          rm -rf stage && mkdir -p stage/open_crafter
+          cp -a build/linux/x64/release/bundle/. stage/open_crafter/
+          tar -C stage -cJf "$tarball" open_crafter
+          echo "TARBALL=$tarball" >> "$GITHUB_ENV"
+
       - name: Resolve package paths
         # Name each artifact after the actual generated file (GitHub still wraps it in a .zip).
         shell: bash
@@ -100,6 +112,13 @@ jobs:
         with:
           name: ${{ env.RPM_NAME }}.rpm
           path: ${{ env.RPM_PATH }}
+          if-no-files-found: error
+          retention-days: 7
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ${{ env.TARBALL }}
+          path: ${{ env.TARBALL }}
           if-no-files-found: error
           retention-days: 7
 
@@ -210,5 +229,6 @@ jobs:
           files: |
             artifacts/**/*.deb
             artifacts/**/*.rpm
+            artifacts/**/*.tar.xz
             artifacts/**/*.app.zip
             artifacts/**/*.exe
