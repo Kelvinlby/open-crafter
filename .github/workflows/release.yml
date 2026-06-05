@@ -78,7 +78,7 @@ jobs:
             --targets deb,rpm \
             --flutter-build-args=release
 
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v7
         with:
           name: linux-packages
           path: |
@@ -123,7 +123,7 @@ jobs:
             "build/macos/Build/Products/Release/open_crafter.app" \
             "open_crafter-${VERSION}-macos-app.zip"
 
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v7
         with:
           name: macos-app
           path: open_crafter-*-macos-app.zip
@@ -163,7 +163,7 @@ jobs:
             "/DAppVersion=${{ env.VERSION }}" `
             "packaging\windows\open_crafter.iss"
 
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v7
         with:
           name: windows-installer
           path: packaging/windows/installer/*.exe
@@ -178,7 +178,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@v5
+      - uses: actions/download-artifact@v7
         with:
           path: artifacts
 
