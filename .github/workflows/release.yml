@@ -22,8 +22,10 @@ on:
 
 env:
   FLUTTER_VERSION: "3.44.1"
-  # On push events the workflow_dispatch inputs are empty, so fall back to a default version.
-  RELEASE_VERSION: ${{ inputs.version || '1.0.0' }}
+
+# Note: on push events the workflow_dispatch inputs are empty, so version references use
+# `${{ inputs.version || '1.0.0' }}` to fall back to a default. (A workflow-level env var
+# can't be reused here because the `env` context isn't allowed inside an `env:` block.)
 
 jobs:
   build-linux:
@@ -73,7 +75,7 @@ jobs:
     name: macOS (.app + .dmg)
     runs-on: macos-14
     env:
-      VERSION: ${{ env.RELEASE_VERSION }}
+      VERSION: ${{ inputs.version || '1.0.0' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -142,7 +144,7 @@ jobs:
         run: |
           choco install innosetup -y --no-progress
           & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" `
-            "/DAppVersion=${{ env.RELEASE_VERSION }}" `
+            "/DAppVersion=${{ inputs.version || '1.0.0' }}" `
             "packaging\windows\open_crafter.iss"
 
       - uses: actions/upload-artifact@v4
