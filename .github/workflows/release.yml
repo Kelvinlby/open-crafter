@@ -67,6 +67,23 @@ jobs:
 
       - run: flutter pub get
 
+      - name: Build Linux bundle
+        # Official Flutter only — produces build/linux/x64/release/bundle/.
+        run: flutter build linux --release
+
+      - name: Pack raw binary (tar.xz)
+        # The plain Flutter bundle for custom installs / unsupported distros. Uses only the
+        # official build above plus coreutils tar/cp (no third-party packaging tool). cp -a
+        # preserves the executable bit and lib symlinks; staged under a top-level
+        # open_crafter/ dir so it extracts cleanly.
+        shell: bash
+        run: |
+          tarball="open_crafter-${VERSION}-linux-x64.tar.xz"
+          rm -rf stage && mkdir -p stage/open_crafter
+          cp -a build/linux/x64/release/bundle/. stage/open_crafter/
+          tar -C stage -cJf "$tarball" open_crafter
+          echo "TARBALL=$tarball" >> "$GITHUB_ENV"
+
       - name: Activate flutter_distributor
         run: dart pub global activate flutter_distributor
 
@@ -77,18 +94,6 @@ jobs:
             --platform linux \
             --targets deb,rpm \
             --flutter-build-args=release
-
-      - name: Pack raw binary (tar.xz)
-        # The plain Flutter bundle for custom installs / unsupported distros (no packaging).
-        # cp -a preserves the executable bit and the lib symlinks; staged under a top-level
-        # open_crafter/ dir so it extracts cleanly.
-        shell: bash
-        run: |
-          tarball="open_crafter-${VERSION}-linux-x64.tar.xz"
-          rm -rf stage && mkdir -p stage/open_crafter
-          cp -a build/linux/x64/release/bundle/. stage/open_crafter/
-          tar -C stage -cJf "$tarball" open_crafter
-          echo "TARBALL=$tarball" >> "$GITHUB_ENV"
 
       - name: Resolve package paths
         # Name each artifact after the actual generated file (GitHub still wraps it in a .zip).
