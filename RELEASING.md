@@ -16,9 +16,9 @@ platforms. Artifacts are uploaded automatically and kept for **7 days**.
 Every commit pushed to `main` automatically builds all three platforms and uploads the
 artifacts (`linux-packages`, `macos-app`, `windows-installer`), downloadable from the
 run summary for 7 days. These builds are named with the **short commit SHA** (e.g.
-`open_crafter-6bf8a27-macos-app.zip`) since no version is supplied. (Linux `.deb`/`.rpm` need a
-digit-led version with an **integer** build number, so they use `0.0.0.<sha>+<run-number>`
-instead.) To produce a named, publishable build with a GitHub Release:
+`open_crafter-6bf8a27-macos-app.zip`) since no version is supplied. (Linux `.deb`/`.rpm` carry
+the SHA in the semver build-metadata field — `0.0.0+<sha>` — which also becomes the `.rpm`
+release.) To produce a named, publishable build with a GitHub Release:
 
 1. GitHub → **Actions** → **Release** → **Run workflow**.
 2. Set **version** (e.g. `1.0.0`).

@@ -11,6 +11,9 @@ categories:
 icon: linux/packaging/open_crafter.png
 priority: optional
 section: utility
+# Required by flutter_app_packager's deb maker (non-nullable int). Estimated installed
+# size in KiB; only used for apt's "disk space" display, so an approximation is fine.
+installed_size: 51200
 maintainer:
   name: Kelvin LBY
   email: kelvinlby123@gmail.com
