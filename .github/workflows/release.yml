@@ -78,12 +78,28 @@ jobs:
             --targets deb,rpm \
             --flutter-build-args=release
 
+      - name: Resolve package paths
+        # Name each artifact after the actual generated file (GitHub still wraps it in a .zip).
+        shell: bash
+        run: |
+          deb=$(find dist -name '*.deb' | head -1)
+          rpm=$(find dist -name '*.rpm' | head -1)
+          echo "DEB_PATH=$deb" >> "$GITHUB_ENV"
+          echo "RPM_PATH=$rpm" >> "$GITHUB_ENV"
+          echo "DEB_NAME=$(basename "$deb" .deb)" >> "$GITHUB_ENV"
+          echo "RPM_NAME=$(basename "$rpm" .rpm)" >> "$GITHUB_ENV"
+
       - uses: actions/upload-artifact@v7
         with:
-          name: linux-packages
-          path: |
-            dist/**/*.deb
-            dist/**/*.rpm
+          name: ${{ env.DEB_NAME }}.deb
+          path: ${{ env.DEB_PATH }}
+          if-no-files-found: error
+          retention-days: 7
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ${{ env.RPM_NAME }}.rpm
+          path: ${{ env.RPM_PATH }}
           if-no-files-found: error
           retention-days: 7
 
@@ -118,15 +134,17 @@ jobs:
         run: flutter build macos --release
 
       - name: Zip the .app
+        # ditto preserves the bundle's symlinks, permissions and ad-hoc signature — uploading
+        # the raw .app dir via upload-artifact would flatten symlinks and break the bundle.
         run: |
           ditto -c -k --keepParent \
             "build/macos/Build/Products/Release/open_crafter.app" \
-            "open_crafter-${VERSION}-macos-app.zip"
+            "open_crafter-${VERSION}.app.zip"
 
       - uses: actions/upload-artifact@v7
         with:
-          name: macos-app
-          path: open_crafter-*-macos-app.zip
+          name: open_crafter-${{ env.VERSION }}-macOS
+          path: open_crafter-*.app.zip
           if-no-files-found: error
           retention-days: 7
 
@@ -165,7 +183,8 @@ jobs:
 
       - uses: actions/upload-artifact@v7
         with:
-          name: windows-installer
+          # Matches OutputBaseFilename in open_crafter.iss (GitHub still wraps it in a .zip).
+          name: open_crafter-${{ env.VERSION }}-setup.exe
           path: packaging/windows/installer/*.exe
           if-no-files-found: error
           retention-days: 7
@@ -189,7 +208,7 @@ jobs:
           name: Open Crafter v${{ inputs.version }}
           draft: true
           files: |
-            artifacts/linux-packages/**/*.deb
-            artifacts/linux-packages/**/*.rpm
-            artifacts/macos-app/*-macos-app.zip
-            artifacts/windows-installer/*.exe
+            artifacts/**/*.deb
+            artifacts/**/*.rpm
+            artifacts/**/*.app.zip
+            artifacts/**/*.exe

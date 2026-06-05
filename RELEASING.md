@@ -13,12 +13,18 @@ platforms. Artifacts are uploaded automatically and kept for **7 days**.
 
 ## How to cut a release
 
-Every commit pushed to `main` automatically builds all three platforms and uploads the
-artifacts (`linux-packages`, `macos-app`, `windows-installer`), downloadable from the
-run summary for 7 days. These builds are named with the **short commit SHA** (e.g.
-`open_crafter-6bf8a27-macos-app.zip`) since no version is supplied. (Linux `.deb`/`.rpm` carry
-the SHA in the semver build-metadata field — `0.0.0+<sha>` — which also becomes the `.rpm`
-release.) To produce a named, publishable build with a GitHub Release:
+Every commit pushed to `main` automatically builds all three platforms and uploads one
+artifact per file, each **named after the file itself** (e.g. `open-crafter-…-x64.deb`,
+`open_crafter-6bf8a27-macOS`, `open_crafter-6bf8a27-setup.exe`), downloadable from the run
+summary for 7 days. Builds are named with the **short commit SHA** since no version is
+supplied. (Linux `.deb`/`.rpm` carry the SHA in the semver build-metadata field —
+`0.0.0+<sha>` — which also becomes the `.rpm` release.)
+
+> **Note:** GitHub always wraps each downloaded artifact in a `.zip`, so from the Actions tab
+> you get `<name>.zip`. To download files with their exact original names **unzipped**, use a
+> GitHub **Release** (below) — the raw `.deb`/`.rpm`/`.exe`/`.app.zip` are attached directly.
+
+To produce a named, publishable build with a GitHub Release:
 
 1. GitHub → **Actions** → **Release** → **Run workflow**.
 2. Set **version** (e.g. `1.0.0`).
@@ -34,7 +40,7 @@ release.) To produce a named, publishable build with a GitHub Release:
 
 - **Linux** — `sudo dpkg -i open-crafter*.deb` (Debian/Ubuntu) or
   `sudo dnf install ./open-crafter*.rpm` (Fedora/RHEL).
-- **macOS** — unzip the `*-macos-app.zip` and move `open_crafter.app` to Applications. First
+- **macOS** — unzip to get `open_crafter.app` and move it to Applications. First
   launch: right-click → **Open**, or run
   `xattr -dr com.apple.quarantine /Applications/open_crafter.app`. (Unsigned/not notarized,
   so Gatekeeper blocks a normal double-click.)
