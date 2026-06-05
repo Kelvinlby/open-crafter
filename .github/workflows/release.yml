@@ -143,7 +143,7 @@ jobs:
 
       - uses: actions/upload-artifact@v7
         with:
-          name: open_crafter-${{ env.VERSION }}-macOS
+          name: open_crafter-${{ env.VERSION }}-darwin
           path: open_crafter-*.app.zip
           if-no-files-found: error
           retention-days: 7
@@ -183,8 +183,8 @@ jobs:
 
       - uses: actions/upload-artifact@v7
         with:
-          # Matches OutputBaseFilename in open_crafter.iss (GitHub still wraps it in a .zip).
-          name: open_crafter-${{ env.VERSION }}-setup.exe
+          # GitHub still wraps it in a .zip; the installer inside is open_crafter-<ver>-setup.exe.
+          name: open_crafter-${{ env.VERSION }}-windows
           path: packaging/windows/installer/*.exe
           if-no-files-found: error
           retention-days: 7

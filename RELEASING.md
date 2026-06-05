@@ -14,8 +14,9 @@ platforms. Artifacts are uploaded automatically and kept for **7 days**.
 ## How to cut a release
 
 Every commit pushed to `main` automatically builds all three platforms and uploads one
-artifact per file, each **named after the file itself** (e.g. `open-crafter-…-x64.deb`,
-`open_crafter-6bf8a27-macOS`, `open_crafter-6bf8a27-setup.exe`), downloadable from the run
+artifact per file, named uniformly as `open_crafter-<ver>-<platform>` (e.g.
+`open-crafter-…-x64.deb`, `open_crafter-6bf8a27-darwin`, `open_crafter-6bf8a27-windows`),
+downloadable from the run
 summary for 7 days. Builds are named with the **short commit SHA** since no version is
 supplied. (Linux `.deb`/`.rpm` carry the SHA in the semver build-metadata field —
 `0.0.0+<sha>` — which also becomes the `.rpm` release.)

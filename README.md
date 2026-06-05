@@ -23,7 +23,7 @@ Inference Engine for General Embodied World Models
 | **Built from** | A tagged, reviewed version | The latest `main` commit |
 | **Use it for** | Everyday use — recommended | Frontier features before they're released |
 | **Trade-off** | Stable | May be unstable; built automatically by CI |
-| **Notes** | — | Requires a (free) GitHub login to download; artifacts expire after **7 days** and are named by commit SHA |
+| **Notes** | — | Requires a (free) GitHub login to download; each file is a separate artifact named `open_crafter-<sha>-<platform>` (GitHub wraps each in a `.zip`); artifacts expire after **7 days** |
 
 > Builds are currently **unsigned**, so the first launch shows a security prompt (see per-platform steps below). This is expected.
 
@@ -32,7 +32,7 @@ Inference Engine for General Embodied World Models
 | Platform | Architecture | File to download | How to install |
 |---|---|---|---|
 | **Windows 10 / 11** | x64 | `open_crafter-<ver>-setup.exe` | Run it. At the SmartScreen warning: **More info → Run anyway**. |
-| **macOS** (Apple Silicon, M1 or newer) | arm64 | `open_crafter-<ver>-macos-app.zip` | Unzip, move `open_crafter.app` to **Applications**, then **right-click → Open** the first time (or run `xattr -dr com.apple.quarantine /Applications/open_crafter.app`). |
+| **macOS** (Apple Silicon, M1 or newer) | arm64 | `open_crafter-<ver>.app.zip` | Unzip, move `open_crafter.app` to **Applications**, then **right-click → Open** the first time (or run `xattr -dr com.apple.quarantine /Applications/open_crafter.app`). |
 | **Debian / Ubuntu / Mint / Pop!_OS** | x86_64 | `open-crafter-<ver>-*.deb` | `sudo apt install ./open-crafter-*.deb` |
 | **Fedora / RHEL / openSUSE** | x86_64 | `open-crafter-<ver>-*.rpm` | `sudo dnf install ./open-crafter-*.rpm` |
 
