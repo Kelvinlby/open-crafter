@@ -8,15 +8,15 @@ platforms. Artifacts are uploaded automatically and kept for **7 days**.
 | Platform | Output | Built with |
 |----------|--------|-----------|
 | Linux    | `.deb` + `.rpm` | `flutter_distributor` (Ubuntu 22.04 runner) |
-| macOS    | `.app` (zipped) + `.dmg` | `create-dmg`, ad-hoc signed |
+| macOS    | `.app` (zipped) | ad-hoc signed |
 | Windows  | `.exe` installer | Inno Setup |
 
 ## How to cut a release
 
 Every commit pushed to `main` automatically builds all three platforms and uploads the
-artifacts (`linux-packages`, `macos-packages`, `windows-installer`), downloadable from the
+artifacts (`linux-packages`, `macos-app`, `windows-installer`), downloadable from the
 run summary for 7 days. These builds are named with the **short commit SHA** (e.g.
-`open_crafter-6bf8a27.dmg`) since no version is supplied. (Linux `.deb`/`.rpm` require a
+`open_crafter-6bf8a27-macos-app.zip`) since no version is supplied. (Linux `.deb`/`.rpm` require a
 digit-led version, so they use `0.0.0+<sha>` instead.) To produce a named, publishable build
 with a GitHub Release:
 
@@ -34,9 +34,10 @@ with a GitHub Release:
 
 - **Linux** — `sudo dpkg -i open-crafter*.deb` (Debian/Ubuntu) or
   `sudo dnf install ./open-crafter*.rpm` (Fedora/RHEL).
-- **macOS** — open the `.dmg`, drag to Applications. First launch: right-click → **Open**,
-  or run `xattr -dr com.apple.quarantine /Applications/open_crafter.app`. (Unsigned/not
-  notarized, so Gatekeeper blocks a normal double-click.)
+- **macOS** — unzip the `*-macos-app.zip` and move `open_crafter.app` to Applications. First
+  launch: right-click → **Open**, or run
+  `xattr -dr com.apple.quarantine /Applications/open_crafter.app`. (Unsigned/not notarized,
+  so Gatekeeper blocks a normal double-click.)
 - **Windows** — run the `*-setup.exe`. SmartScreen shows an "unknown publisher" warning →
   **More info** → **Run anyway**. (Unsigned.)
 
@@ -52,7 +53,7 @@ All secrets go in **Settings → Secrets and variables → Actions**.
    (an app-specific password) — or an App Store Connect API key.
 3. In the workflow: import the cert into a temporary keychain, drop the `CODE_SIGN_IDENTITY="-"`
    override (sign with the real identity + Hardened Runtime `--options runtime`), then
-   `xcrun notarytool submit --wait` the `.dmg` and `xcrun stapler staple` it.
+   `xcrun notarytool submit --wait` a zip of the `.app` and `xcrun stapler staple` the `.app`.
 
 ### Windows
 - **File-based `.pfx`:** secrets `WIN_CERT_PFX_BASE64` + `WIN_CERT_PASSWORD`; add a

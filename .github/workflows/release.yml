@@ -86,7 +86,7 @@ jobs:
           retention-days: 7
 
   build-macos:
-    name: macOS (.app + .dmg)
+    name: macOS (.app)
     runs-on: macos-14
     steps:
       - uses: actions/checkout@v5
@@ -115,22 +115,6 @@ jobs:
         # the signature Apple Silicon needs to launch, without requiring a Developer ID.
         run: flutter build macos --release
 
-      - name: Create .dmg
-        run: |
-          brew install create-dmg
-          APP="build/macos/Build/Products/Release/open_crafter.app"
-          DMG="open_crafter-${VERSION}.dmg"
-          # create-dmg can return non-zero on CI even when the .dmg is produced;
-          # fall back to a plain hdiutil image if the styled build fails.
-          create-dmg \
-            --volname "Open Crafter" \
-            --window-size 600 400 \
-            --icon-size 100 \
-            --icon "open_crafter.app" 150 200 \
-            --app-drop-link 450 200 \
-            "$DMG" "$APP" \
-          || hdiutil create -volname "Open Crafter" -srcfolder "$APP" -ov -format UDZO "$DMG"
-
       - name: Zip the .app
         run: |
           ditto -c -k --keepParent \
@@ -139,10 +123,8 @@ jobs:
 
       - uses: actions/upload-artifact@v5
         with:
-          name: macos-packages
-          path: |
-            open_crafter-*.dmg
-            open_crafter-*-macos-app.zip
+          name: macos-app
+          path: open_crafter-*-macos-app.zip
           if-no-files-found: error
           retention-days: 7
 
@@ -207,6 +189,5 @@ jobs:
           files: |
             artifacts/linux-packages/**/*.deb
             artifacts/linux-packages/**/*.rpm
-            artifacts/macos-packages/*.dmg
-            artifacts/macos-packages/*-macos-app.zip
+            artifacts/macos-app/*-macos-app.zip
             artifacts/windows-installer/*.exe
