@@ -5,7 +5,8 @@
 // 'flutter create' template.
 
 // The application's name. By default this is also the title of the Flutter window.
-PRODUCT_NAME = open_crafter
+// Shown in the menu bar, Dock, Finder and Launchpad (also names the .app bundle).
+PRODUCT_NAME = Open Crafter
 
 // The application's bundle identifier
 PRODUCT_BUNDLE_IDENTIFIER = app.kelvinlby.openCrafter

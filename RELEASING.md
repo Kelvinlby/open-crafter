@@ -41,9 +41,9 @@ To produce a named, publishable build with a GitHub Release:
 
 - **Linux** — `sudo dpkg -i open-crafter*.deb` (Debian/Ubuntu) or
   `sudo dnf install ./open-crafter*.rpm` (Fedora/RHEL).
-- **macOS** — unzip to get `open_crafter.app` and move it to Applications. First
+- **macOS** — unzip to get `Open Crafter.app` and move it to Applications. First
   launch: right-click → **Open**, or run
-  `xattr -dr com.apple.quarantine /Applications/open_crafter.app`. (Unsigned/not notarized,
+  `xattr -dr com.apple.quarantine "/Applications/Open Crafter.app"`. (Unsigned/not notarized,
   so Gatekeeper blocks a normal double-click.)
 - **Windows** — run the `*-setup.exe`. SmartScreen shows an "unknown publisher" warning →
   **More info** → **Run anyway**. (Unsigned.)

@@ -32,7 +32,7 @@ Inference Engine for General Embodied World Models
 | Platform | Architecture | File to download | How to install |
 |---|---|---|---|
 | **Windows 10 / 11** | x64 | `open_crafter-<ver>-setup.exe` | Run it. At the SmartScreen warning: **More info → Run anyway**. |
-| **macOS** (Apple Silicon, M1 or newer) | arm64 | `open_crafter-<ver>.app.zip` | Unzip, move `open_crafter.app` to **Applications**, then **right-click → Open** the first time (or run `xattr -dr com.apple.quarantine /Applications/open_crafter.app`). |
+| **macOS** (Apple Silicon, M1 or newer) | arm64 | `open_crafter-<ver>.app.zip` | Unzip, move `Open Crafter.app` to **Applications**, then **right-click → Open** the first time (or run `xattr -dr com.apple.quarantine "/Applications/Open Crafter.app"`). |
 | **Debian / Ubuntu / Mint / Pop!_OS** | x86_64 | `open-crafter-<ver>-*.deb` | `sudo apt install ./open-crafter-*.deb` |
 | **Fedora / RHEL / openSUSE** | x86_64 | `open-crafter-<ver>-*.rpm` | `sudo dnf install ./open-crafter-*.rpm` |
 
