@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'pages/home_page.dart';
+import 'pages/runtime_page.dart';
 import 'pages/link_page.dart';
 import 'pages/model_page.dart';
 import 'pages/setting_page.dart';
@@ -84,7 +85,7 @@ class _HomeShellState extends State<HomeShell> {
 
   // Setting is rendered in the rail's `trailing` slot rather than as a
   // destination, so its page index is tracked separately.
-  static const int _settingIndex = 3;
+  static const int _settingIndex = 4;
   static const int _homeIndex = 0;
 
   // Lets the chat FAB drive the Home page (start a new conversation) even
@@ -93,6 +94,7 @@ class _HomeShellState extends State<HomeShell> {
 
   late final List<Widget> _pages = <Widget>[
     HomePage(key: _homeKey, settings: widget.settings),
+    const RuntimePage(),
     const LinkPage(),
     const ModelPage(),
     SettingPage(settings: widget.settings),
@@ -143,6 +145,11 @@ class _HomeShellState extends State<HomeShell> {
                 icon: Icon(Icons.home_outlined),
                 selectedIcon: Icon(Icons.home_rounded),
                 label: Text('Home'),
+              ),
+              NavigationRailDestination(
+                icon: Icon(Icons.memory_outlined),
+                selectedIcon: Icon(Icons.memory),
+                label: Text('Runtime'),
               ),
               NavigationRailDestination(
                 icon: Icon(Icons.cable_outlined),

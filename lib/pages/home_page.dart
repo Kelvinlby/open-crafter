@@ -132,6 +132,93 @@ class HomePageState extends State<HomePage>
   /// after each layout via [_measureComposer].
   double _composerHeight = 0;
 
+  /// Measures the floating top toolbar so the message list can reserve matching
+  /// top padding, letting the first message scroll clear below it.
+  final GlobalKey _toolbarKey = GlobalKey();
+
+  /// Latest measured toolbar height; seeds the list's top inset. Updated after
+  /// each layout via [_measureToolbar].
+  double _topInset = 0;
+
+  /// Model options shown in the toolbar's "Model" dropdown, and the current
+  /// selection.
+  ///
+  /// TODO(model-loading): Replace the dummy seed with the real catalog of
+  /// installed/available models. Expected integration:
+  ///   * Source the list from the Model page's backing store — the same data
+  ///     `ModelPage` (lib/pages/model_page.dart) will list — likely via a shared
+  ///     service (e.g. a `ModelService`/`ModelStore`) injected into this page,
+  ///     not a local list. Each entry should carry an id + display name (replace
+  ///     `String` with a `ModelInfo` type) so selection survives renames.
+  ///   * Load asynchronously in [initState] (or listen to the service) and
+  ///     `setState` when it resolves; show a loading/empty state in the dropdown
+  ///     while the catalog is being fetched.
+  ///   * Persist `_selectedModel` in `SettingsService` so the last-used model is
+  ///     restored on launch instead of starting null.
+  final List<String> _models = <String>['Model A', 'Model B'];
+  String? _selectedModel;
+
+  /// Link options shown in the toolbar's "Link" dropdown, and the current
+  /// selection.
+  ///
+  /// TODO(link-loading): Replace the dummy seed with real connection/link
+  /// targets. Expected integration:
+  ///   * Source from the Link page's backing data (lib/pages/link_page.dart) via
+  ///     a shared `LinkService`, mirroring the model dropdown. Entries should be
+  ///     a `LinkInfo` (id + label + reachable/health flag), not bare strings.
+  ///   * A link can change state at runtime (break/freeze/reconnect); subscribe
+  ///     to the service and `setState` on change so the dropdown and the
+  ///     collapsed pill's status reflect it live.
+  ///   * Persist `_selectedLink` in `SettingsService` like `_selectedModel`.
+  final List<String> _links = <String>['Link 1', 'Link 2'];
+  String? _selectedLink;
+
+  /// Whether the model is "loaded" (running). Drives the load/pause toggle in
+  /// the toolbar.
+  ///
+  /// TODO(model-loading): Currently a visual-only flag toggled synchronously.
+  /// Real integration:
+  ///   * Loading is async and can fail — replace this bool with a small state
+  ///     enum (`unloaded`/`loading`/`loaded`/`error`) so the toggle can show a
+  ///     spinner while loading and an error affordance on failure.
+  ///   * `_modelLoaded` (or the enum) should be derived from the runtime/backend
+  ///     load state, not owned here, so it stays correct if the model is
+  ///     unloaded elsewhere or the process dies. See [_toggleModelLoaded].
+  bool _modelLoaded = false;
+
+  /// True while the mouse is over the toolbar; expands the collapsed pill.
+  bool _toolbarHovered = false;
+
+  /// True while the toolbar (or one of its dropdowns) holds focus; keeps the
+  /// pill expanded so an open dropdown menu doesn't collapse it mid-selection.
+  bool _toolbarFocused = false;
+
+  /// Fraction of the model's context window currently used (0..1). Shown in the
+  /// collapsed pill.
+  ///
+  /// TODO(runtime-status): Replace the hardcoded 0.6 with live runtime info.
+  /// Expected integration:
+  ///   * Compute from the active conversation's token count against the loaded
+  ///     model's context window (tokens-used / context-size). The token count
+  ///     should come from the inference backend that replaces `dummyInference`
+  ///     (lib/services/dummy_model.dart), updated as messages stream in.
+  ///   * Make it non-final and `setState` (or drive it from a stream) as usage
+  ///     changes; it resets when the conversation or model changes.
+  ///   * Consider widening this into a small status object (context %, tokens/s,
+  ///     link health) so [_statusLabel] can show richer state without more
+  ///     fields. See [_statusLabel].
+  final double _contextUsed = 0.6;
+
+  /// The toolbar shows as a compact pill until something forces it open: a
+  /// missing Model/Link choice or an unloaded model (the cases where the user
+  /// needs the controls), or while hovered/focused.
+  bool get _toolbarExpanded =>
+      _toolbarHovered ||
+      _toolbarFocused ||
+      _selectedModel == null ||
+      _selectedLink == null ||
+      !_modelLoaded;
+
   /// Scrolls the conversation list so new/streamed messages stay in view.
   final ScrollController _conversationScrollController = ScrollController();
 
@@ -183,6 +270,27 @@ class HomePageState extends State<HomePage>
       final double? height = _composerKey.currentContext?.size?.height;
       if (height != null && (height - _composerHeight).abs() > 0.5) {
         setState(() => _composerHeight = height);
+      }
+    });
+  }
+
+  /// Reads the floating toolbar's rendered height after layout and reserves it
+  /// as the message list's top padding. Mirrors [_measureComposer]; the size is
+  /// only known once laid out.
+  ///
+  /// Crucially this only ever *grows* [_topInset], latching the toolbar's
+  /// tallest (expanded) height. The capsule animates its height with
+  /// [AnimatedSize], so a measurement taken mid-collapse/expand reads a
+  /// transient in-between value; accepting those would tug the conversation list
+  /// up and down by a few pixels each time the pointer crosses the toolbar.
+  /// Reserving the max means the list's inset stays constant and the first
+  /// message clears the toolbar in either state, so the list never shifts.
+  void _measureToolbar() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final double? height = _toolbarKey.currentContext?.size?.height;
+      if (height != null && height > _topInset + 0.5) {
+        setState(() => _topInset = height);
       }
     });
   }
@@ -952,38 +1060,313 @@ class HomePageState extends State<HomePage>
   }
 
   Widget _buildContent(BuildContext context) {
-    return Column(
+    // The conversation list fills the whole pane up to the top edge; the
+    // hamburger, toolbar and composer all float over it. The list reserves top
+    // and bottom padding so its first/last messages scroll clear of the
+    // floating controls.
+    return Stack(
       children: <Widget>[
-        // Top bar with the list toggle.
-        Padding(
-          padding: const EdgeInsets.all(8),
+        Positioned.fill(child: _buildConversation(context)),
+        // Floating Material 3 toolbar, centered across the top. The list-toggle
+        // lives at its left edge.
+        Positioned(
+          top: 8,
+          left: 0,
+          right: 0,
           child: Align(
-            alignment: Alignment.centerLeft,
-            child: IconButton(
-              tooltip: _listVisible ? 'Hide list' : 'Show list',
-              icon: Icon(_listVisible ? Icons.menu_open : Icons.menu),
-              onPressed: () => setState(() => _listVisible = !_listVisible),
+            alignment: Alignment.topCenter,
+            child: _buildToolbar(context),
+          ),
+        ),
+        Positioned(
+          left: 0,
+          right: 0,
+          bottom: 0,
+          child: _buildComposer(context),
+        ),
+      ],
+    );
+  }
+
+  /// The floating Material 3 toolbar: a capsule-shaped, elevated bar that
+  /// collapses to a compact pill (model name + context indicator) during normal
+  /// conversation, and expands to the full control set — list-toggle, the Model
+  /// and Link dropdowns, and the load/restart buttons — on hover/focus or while
+  /// a selection is missing or the model is unloaded (see [_toolbarExpanded]).
+  ///
+  /// The list-toggle lives inside the capsule when expanded; when the capsule
+  /// shrinks it "drips out" into a standalone floating circle to the left, the
+  /// same height as and vertically centered with the shrunk capsule.
+  Widget _buildToolbar(BuildContext context) {
+    // Re-measure each build so the list's top inset tracks the toolbar height
+    // (which scales with the global text scale).
+    _measureToolbar();
+    final Widget capsule = _buildCapsule(context);
+    if (_toolbarExpanded) return capsule;
+    // Collapsed: the hamburger sits beside the capsule as its own circle.
+    // IntrinsicHeight + stretch sizes it to the capsule's height; AspectRatio
+    // keeps it round; CrossAxisAlignment defaults to centre via the stretch.
+    return IntrinsicHeight(
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          AspectRatio(
+            aspectRatio: 1,
+            child: _buildStandaloneHamburger(context),
+          ),
+          const SizedBox(width: 8),
+          capsule,
+        ],
+      ),
+    );
+  }
+
+  /// The capsule itself (without the dripped-out hamburger): the hover/focus
+  /// region, elevated stadium surface, and the animated collapsed/expanded swap.
+  Widget _buildCapsule(BuildContext context) {
+    final ColorScheme colors = Theme.of(context).colorScheme;
+    return MouseRegion(
+      onEnter: (_) => setState(() => _toolbarHovered = true),
+      onExit: (_) => setState(() => _toolbarHovered = false),
+      child: Focus(
+        // Keep the bar expanded while any descendant (e.g. an open dropdown)
+        // holds focus, so it doesn't snap shut mid-selection.
+        onFocusChange: (bool focused) =>
+            setState(() => _toolbarFocused = focused),
+        child: Material(
+          key: _toolbarKey,
+          color: colors.surfaceContainer,
+          elevation: 4,
+          shape: const StadiumBorder(),
+          clipBehavior: Clip.antiAlias,
+          child: AnimatedSize(
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeInOut,
+            alignment: Alignment.topCenter,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              child: _toolbarExpanded
+                  ? _buildToolbarExpanded(context)
+                  : _buildToolbarCollapsed(context),
             ),
           ),
         ),
-        // Conversation content area for the selected card. The list fills the
-        // whole area down to the window bottom; the composer floats on top of
-        // it (the list's bottom padding lets the last message scroll clear of
-        // the card).
-        Expanded(
-          child: Stack(
-            children: <Widget>[
-              Positioned.fill(child: _buildConversation(context)),
-              Positioned(
-                left: 0,
-                right: 0,
-                bottom: 0,
-                child: _buildComposer(context),
-              ),
-            ],
+      ),
+    );
+  }
+
+  /// The list-toggle as it appears inside the expanded toolbar.
+  Widget _buildListToggle() {
+    return IconButton(
+      tooltip: _listVisible ? 'Hide list' : 'Show list',
+      icon: Icon(_listVisible ? Icons.menu_open : Icons.menu),
+      onPressed: () => setState(() => _listVisible = !_listVisible),
+    );
+  }
+
+  /// The list-toggle as a standalone floating circle, shown only while the
+  /// capsule is collapsed. Sized by its parent (a stretched, square cell) to
+  /// match the capsule height; the icon is centred and its tap target loosened
+  /// so it never overflows a short pill.
+  Widget _buildStandaloneHamburger(BuildContext context) {
+    final ColorScheme colors = Theme.of(context).colorScheme;
+    return Material(
+      color: colors.surfaceContainer,
+      elevation: 4,
+      shape: const CircleBorder(),
+      clipBehavior: Clip.antiAlias,
+      child: Center(
+        child: IconButton(
+          tooltip: _listVisible ? 'Hide list' : 'Show list',
+          icon: Icon(_listVisible ? Icons.menu_open : Icons.menu),
+          onPressed: () => setState(() => _listVisible = !_listVisible),
+          padding: EdgeInsets.zero,
+          constraints: const BoxConstraints(),
+        ),
+      ),
+    );
+  }
+
+  /// The collapsed pill: the active model name and a small circular context
+  /// indicator to its right. Only reachable once a model is selected and loaded,
+  /// so the model name is always present here.
+  Widget _buildToolbarCollapsed(BuildContext context) {
+    final TextTheme text = Theme.of(context).textTheme;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: <Widget>[
+        const SizedBox(width: 4),
+        Text(
+          _selectedModel ?? 'No model',
+          style: text.titleSmall,
+        ),
+        const SizedBox(width: 10),
+        _buildContextIndicator(context),
+        const SizedBox(width: 4),
+      ],
+    );
+  }
+
+  /// A small determinate ring showing context-window usage, sitting to the right
+  /// of the model name in the collapsed pill. The exact percentage is exposed on
+  /// hover via [_statusLabel].
+  ///
+  /// TODO(runtime-status): [_contextUsed] is dummy; once it is driven by live
+  /// runtime data (see its field doc) this ring reflects real usage with no
+  /// change here. Consider tinting it (e.g. toward the error color) as it nears
+  /// full.
+  Widget _buildContextIndicator(BuildContext context) {
+    return Tooltip(
+      message: _statusLabel(),
+      waitDuration: _kTooltipWait,
+      child: SizedBox(
+        width: 18,
+        height: 18,
+        child: CircularProgressIndicator(
+          value: _contextUsed,
+          strokeWidth: 2.5,
+        ),
+      ),
+    );
+  }
+
+  /// The context-usage percentage, shown as the context ring's hover tooltip.
+  ///
+  /// TODO(runtime-status): Currently formats the dummy [_contextUsed]. Once that
+  /// field is backed by real runtime data, this needs no change; extend the
+  /// string here (e.g. add link health) if richer status is wanted.
+  String _statusLabel() => '${(_contextUsed * 100).round()}% context used';
+
+  /// The full control set, shown when the toolbar is expanded.
+  Widget _buildToolbarExpanded(BuildContext context) {
+    final ColorScheme colors = Theme.of(context).colorScheme;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: <Widget>[
+        _buildListToggle(),
+        const SizedBox(width: 16),
+        _buildToolbarDropdown(
+          label: 'Model',
+          options: _models,
+          value: _selectedModel,
+          onChanged: _onModelSelected,
+        ),
+        const SizedBox(width: 12),
+        _buildToolbarDropdown(
+          label: 'Link',
+          options: _links,
+          value: _selectedLink,
+          onChanged: _onLinkSelected,
+        ),
+        const SizedBox(width: 16),
+        // Load-model toggle: a play button that flips to a pause button. When
+        // loaded it fills with the emphasized primary color in a rounded-corner
+        // square; idle it sits on a subtle tonal surface. Disabled until a model
+        // is chosen — there is nothing to load otherwise.
+        IconButton(
+          tooltip: _modelLoaded ? 'Unload model' : 'Load model',
+          icon: Icon(_modelLoaded ? Icons.pause : Icons.play_arrow),
+          onPressed: _selectedModel == null ? null : _toggleModelLoaded,
+          style: IconButton.styleFrom(
+            foregroundColor: _modelLoaded
+                ? colors.onPrimary
+                : colors.onSurfaceVariant,
+            backgroundColor: _modelLoaded
+                ? colors.primary
+                : colors.surfaceContainerHighest,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
           ),
         ),
+        const SizedBox(width: 8),
+        IconButton(
+          tooltip: 'Restart',
+          icon: const Icon(Icons.restart_alt),
+          onPressed: _restartLink,
+        ),
       ],
+    );
+  }
+
+  /// Handles a Model dropdown selection.
+  ///
+  /// TODO(model-loading): Currently just records the choice. Expected behavior:
+  ///   * Switching the model while one is loaded should unload the old model and
+  ///     reset [_modelLoaded] (the user must re-load), so the toggle and pill
+  ///     never claim a stale model is running. Optionally auto-load the new one.
+  ///   * Persist the choice via `SettingsService` so it is restored next launch.
+  ///   * Validate against the live catalog (the selection may have been removed
+  ///     since the menu opened).
+  void _onModelSelected(String? value) {
+    setState(() => _selectedModel = value);
+  }
+
+  /// Handles a Link dropdown selection.
+  ///
+  /// TODO(link-loading): Currently just records the choice. Expected behavior:
+  ///   * Establish/switch the connection to the selected link; reflect its
+  ///     reachability in the UI and, on failure, force the toolbar open with an
+  ///     error state.
+  ///   * A loaded model may be tied to a link — decide whether switching links
+  ///     requires unloading/reloading, and update [_modelLoaded] accordingly.
+  ///   * Persist via `SettingsService`.
+  void _onLinkSelected(String? value) {
+    setState(() => _selectedLink = value);
+  }
+
+  /// Toggles the load/unload state of the selected model.
+  ///
+  /// TODO(model-loading): Currently flips a local bool synchronously. Expected
+  /// behavior:
+  ///   * Load: call the runtime/backend to load [_selectedModel] over
+  ///     [_selectedLink]. This is async and can fail — drive the load-state
+  ///     enum (see [_modelLoaded]) through loading → loaded/error, show a
+  ///     spinner on the button while loading, and surface errors.
+  ///   * Unload: tear down the loaded model and free its resources.
+  ///   * Guard against acting with no model/link selected (shouldn't be
+  ///     reachable since the toolbar force-expands and the button could be
+  ///     disabled in that state).
+  void _toggleModelLoaded() {
+    setState(() => _modelLoaded = !_modelLoaded);
+  }
+
+  /// Restarts the active link/connection.
+  ///
+  /// TODO(link-loading): No-op placeholder. Expected behavior:
+  ///   * Tear down and re-establish the connection to [_selectedLink] — the
+  ///     recovery path for a broken/frozen link.
+  ///   * If a model was loaded, decide whether a restart unloads it (likely) and
+  ///     update [_modelLoaded]; show progress/error feedback while restarting.
+  ///   * Consider confirming if a restart would interrupt an in-flight reply
+  ///     ([_streaming]).
+  void _restartLink() {}
+
+  /// One outlined-with-label dropdown selector for the toolbar, following the
+  /// outlined `DropdownButtonFormField` pattern used in `setting_page.dart`.
+  Widget _buildToolbarDropdown({
+    required String label,
+    required List<String> options,
+    required String? value,
+    required ValueChanged<String?> onChanged,
+  }) {
+    return SizedBox(
+      width: 180,
+      child: DropdownButtonFormField<String>(
+        initialValue: value,
+        isDense: true,
+        decoration: InputDecoration(
+          labelText: label,
+          border: const OutlineInputBorder(),
+          isDense: true,
+        ),
+        items: <DropdownMenuItem<String>>[
+          for (final String option in options)
+            DropdownMenuItem<String>(value: option, child: Text(option)),
+        ],
+        onChanged: onChanged,
+      ),
     );
   }
 
@@ -1067,9 +1450,10 @@ class HomePageState extends State<HomePage>
     final int count = pairs.length;
     return ListView.separated(
       controller: _conversationScrollController,
-      // Bottom inset clears the floating composer so the last message can
-      // scroll above it; +8 keeps a small gap between them.
-      padding: EdgeInsets.fromLTRB(24, 16, 24, _composerHeight + 8),
+      // Top inset clears the floating toolbar and bottom inset clears the
+      // floating composer, so the first/last messages scroll clear of them;
+      // +8 keeps a small gap on each side.
+      padding: EdgeInsets.fromLTRB(24, _topInset + 8, 24, _composerHeight + 8),
       itemCount: count,
       separatorBuilder: (BuildContext context, int index) =>
           const SizedBox(height: 16),
