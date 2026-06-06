@@ -193,6 +193,14 @@ class HomePageState extends State<HomePage>
   /// pill expanded so an open dropdown menu doesn't collapse it mid-selection.
   bool _toolbarFocused = false;
 
+  /// True while a toolbar dropdown's menu is open. The menu is a separate modal
+  /// route whose barrier steals hover and whose scope steals focus, so without
+  /// this latch the capsule would collapse out from under the open menu (and
+  /// unmount it). Set when a dropdown is tapped open ([_buildToolbarDropdown]);
+  /// cleared on selection ([_onModelSelected]/[_onLinkSelected]) or when the
+  /// pointer re-enters the capsule after the menu closes ([_buildCapsule]).
+  bool _dropdownOpen = false;
+
   /// Fraction of the model's context window currently used (0..1). Shown in the
   /// collapsed pill.
   ///
@@ -215,6 +223,7 @@ class HomePageState extends State<HomePage>
   bool get _toolbarExpanded =>
       _toolbarHovered ||
       _toolbarFocused ||
+      _dropdownOpen ||
       _selectedModel == null ||
       _selectedLink == null ||
       !_modelLoaded;
@@ -1127,11 +1136,21 @@ class HomePageState extends State<HomePage>
   Widget _buildCapsule(BuildContext context) {
     final ColorScheme colors = Theme.of(context).colorScheme;
     return MouseRegion(
-      onEnter: (_) => setState(() => _toolbarHovered = true),
+      // Entering the capsule also clears the dropdown latch: while a menu is
+      // open its barrier covers the capsule, so onEnter can only fire once the
+      // menu has closed and the pointer is back over the bar.
+      onEnter: (_) => setState(() {
+        _toolbarHovered = true;
+        _dropdownOpen = false;
+      }),
       onExit: (_) => setState(() => _toolbarHovered = false),
       child: Focus(
-        // Keep the bar expanded while any descendant (e.g. an open dropdown)
-        // holds focus, so it doesn't snap shut mid-selection.
+        // Keep the bar expanded while any descendant holds focus. We do NOT
+        // clear the dropdown latch here: DropdownButton focuses its field
+        // *before* opening the menu (dropdown.dart _handleTap), so a focus-gain
+        // fires at open time — clearing the latch then would collapse the
+        // capsule out from under the just-opened menu. The latch is cleared on
+        // selection or on pointer re-entry instead.
         onFocusChange: (bool focused) =>
             setState(() => _toolbarFocused = focused),
         child: Material(
@@ -1300,7 +1319,10 @@ class HomePageState extends State<HomePage>
   ///   * Validate against the live catalog (the selection may have been removed
   ///     since the menu opened).
   void _onModelSelected(String? value) {
-    setState(() => _selectedModel = value);
+    setState(() {
+      _selectedModel = value;
+      _dropdownOpen = false;
+    });
   }
 
   /// Handles a Link dropdown selection.
@@ -1313,7 +1335,10 @@ class HomePageState extends State<HomePage>
   ///     requires unloading/reloading, and update [_modelLoaded] accordingly.
   ///   * Persist via `SettingsService`.
   void _onLinkSelected(String? value) {
-    setState(() => _selectedLink = value);
+    setState(() {
+      _selectedLink = value;
+      _dropdownOpen = false;
+    });
   }
 
   /// Toggles the load/unload state of the selected model.
@@ -1356,6 +1381,9 @@ class HomePageState extends State<HomePage>
       child: DropdownButtonFormField<String>(
         initialValue: value,
         isDense: true,
+        // Latch the toolbar open the instant the menu opens, before the menu's
+        // barrier/route can strip hover and focus and collapse the capsule.
+        onTap: () => setState(() => _dropdownOpen = true),
         decoration: InputDecoration(
           labelText: label,
           border: const OutlineInputBorder(),
