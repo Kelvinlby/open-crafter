@@ -2,7 +2,22 @@
 	"required": true,
 	"package": "mod.kelvinlby.opencrafter.mixin.vision",
 	"compatibilityLevel": "JAVA_25",
-	"client": [],
+	"client": [
+		"BlockEntityRenderDispatcherMixin",
+		"EntityRenderDispatcherMixin",
+		"FirstPersonHandsAndItemsRendererMixin",
+		"GameRendererMixin",
+		"GuiDrawAccessor",
+		"GuiRendererMixin",
+		"LevelRendererMixin",
+		"MinecraftRenderFrameMixin",
+		"QuadParticleFeatureRendererMixin",
+		"QuadParticleGroupMixin",
+		"QuadParticleRenderStateMixin",
+		"RenderTypeFeatureRendererMixin",
+		"SimpleFeatureRenderPhaseMixin",
+		"TranslucentFeatureRenderPhaseMixin"
+	],
 	"injectors": {
 		"defaultRequire": 1
 	},
