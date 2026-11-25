@@ -1,5 +1,6 @@
 package mod.kelvinlby.opencrafter.transport;
 
+import mod.kelvinlby.opencrafter.api.BackendLifecycle;
 import mod.kelvinlby.opencrafter.api.Args;
 import mod.kelvinlby.opencrafter.api.ThreadAffinity;
 import mod.kelvinlby.opencrafter.api.frame.DType;
@@ -46,7 +47,7 @@ class PythonClientTest {
 		TransportConfig config = new TransportConfig();
 		config.socketPath = dir.resolve("py.sock").toString();
 		config.sharedMemoryPath = dir.resolve("py-ring").toString();
-		transport = TransportModule.start(config, handlers, mainThread);
+		transport = TransportModule.start(config, handlers, new BackendLifecycle(), mainThread);
 		handlers.register("echo", ThreadAffinity.ANY, Args::raw);
 		handlers.register("main.thread", ThreadAffinity.MAIN, args -> Thread.currentThread().getName());
 		handlers.register("boom", ThreadAffinity.ANY, args -> {

@@ -1,5 +1,6 @@
 package mod.kelvinlby.opencrafter.transport;
 
+import mod.kelvinlby.opencrafter.api.BackendLifecycle;
 import mod.kelvinlby.opencrafter.api.ThreadAffinity;
 import mod.kelvinlby.opencrafter.api.frame.DType;
 import mod.kelvinlby.opencrafter.api.frame.FrameSlot;
@@ -39,7 +40,7 @@ class TransportEndToEndTest {
 		config = new TransportConfig();
 		config.socketPath = dir.resolve("oc.sock").toString();
 		config.sharedMemoryPath = dir.resolve("oc-ring").toString();
-		transport = TransportModule.start(config, handlers, mainThread);
+		transport = TransportModule.start(config, handlers, new BackendLifecycle(), mainThread);
 		handlers.register("echo", ThreadAffinity.ANY, args -> args.raw());
 		handlers.register("main.thread", ThreadAffinity.MAIN, args -> Thread.currentThread().getName());
 		handlers.register("boom", ThreadAffinity.MAIN, args -> {
@@ -183,7 +184,7 @@ class TransportEndToEndTest {
 	void staleSocketFileIsReplaced() throws Exception {
 		transport.close();
 		Files.writeString(Path.of(config.socketPath), "stale");
-		transport = TransportModule.start(config, handlers, mainThread);
+		transport = TransportModule.start(config, handlers, new BackendLifecycle(), mainThread);
 		try (TestClient client = new TestClient(transport.socketPath())) {
 			assertEquals("hello", client.read().get("event"));
 		}

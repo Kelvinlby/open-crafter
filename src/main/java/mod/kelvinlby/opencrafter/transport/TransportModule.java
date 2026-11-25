@@ -1,5 +1,6 @@
 package mod.kelvinlby.opencrafter.transport;
 
+import mod.kelvinlby.opencrafter.api.BackendLifecycle;
 import mod.kelvinlby.opencrafter.api.EventSink;
 import mod.kelvinlby.opencrafter.api.frame.FramePublisher;
 import mod.kelvinlby.opencrafter.api.frame.FrameSlot;
@@ -47,10 +48,10 @@ public final class TransportModule implements AutoCloseable {
 	private TransportModule() {
 	}
 
-	public static TransportModule start(TransportConfig config, HandlerRegistry handlers, Executor mainThread) {
+	public static TransportModule start(TransportConfig config, HandlerRegistry handlers, BackendLifecycle lifecycle, Executor mainThread) {
 		TransportModule module = new TransportModule();
 		module.ring = openRing(config, module);
-		module.server = openServer(config, new Dispatcher(handlers, mainThread), new Hello(handlers, module::ringPath));
+		module.server = openServer(config, new Dispatcher(handlers, mainThread), new Hello(handlers, module::ringPath), lifecycle::fireLastDisconnect);
 		return module;
 	}
 
@@ -129,10 +130,10 @@ public final class TransportModule implements AutoCloseable {
 		}
 	}
 
-	private static SocketServer openServer(TransportConfig config, Dispatcher dispatcher, Hello hello) {
+	private static SocketServer openServer(TransportConfig config, Dispatcher dispatcher, Hello hello, Runnable onLastDisconnect) {
 		Path path = TransportPaths.socket(config.socketPath);
 		try {
-			SocketServer server = SocketServer.open(path, dispatcher, hello::encode);
+			SocketServer server = SocketServer.open(path, dispatcher, hello::encode, onLastDisconnect);
 			LOGGER.info("Backend socket at {}", path);
 			return server;
 		} catch (IOException | RuntimeException e) {

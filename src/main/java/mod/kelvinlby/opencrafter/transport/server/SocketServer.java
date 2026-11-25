@@ -27,23 +27,26 @@ public final class SocketServer implements AutoCloseable {
 	private final ServerSocketChannel server;
 	private final Dispatcher dispatcher;
 	private final Supplier<byte[]> hello;
+	private final Runnable onLastDisconnect;
 	private final Set<Connection> connections = ConcurrentHashMap.newKeySet();
 	private final AtomicInteger connectionCount = new AtomicInteger();
 	private final AtomicLong nextId = new AtomicLong();
 	private volatile boolean closed;
 
-	private SocketServer(Path path, ServerSocketChannel server, Dispatcher dispatcher, Supplier<byte[]> hello) {
+	private SocketServer(Path path, ServerSocketChannel server, Dispatcher dispatcher, Supplier<byte[]> hello, Runnable onLastDisconnect) {
 		this.path = path;
 		this.server = server;
 		this.dispatcher = dispatcher;
 		this.hello = hello;
+		this.onLastDisconnect = onLastDisconnect;
 	}
 
 	/**
 	 * Binds {@code path} (replacing a stale socket file) and starts accepting.
-	 * {@code hello} is invoked per connection and sent as its first message.
+	 * {@code hello} is invoked per connection and sent as its first message;
+	 * {@code onLastDisconnect} runs whenever the connection count drops to zero.
 	 */
-	public static SocketServer open(Path path, Dispatcher dispatcher, Supplier<byte[]> hello) throws IOException {
+	public static SocketServer open(Path path, Dispatcher dispatcher, Supplier<byte[]> hello, Runnable onLastDisconnect) throws IOException {
 		PrivateFiles.prepareFresh(path);
 		ServerSocketChannel channel = ServerSocketChannel.open(StandardProtocolFamily.UNIX);
 		try {
@@ -53,7 +56,7 @@ public final class SocketServer implements AutoCloseable {
 			channel.close();
 			throw e;
 		}
-		SocketServer server = new SocketServer(path, channel, dispatcher, hello);
+		SocketServer server = new SocketServer(path, channel, dispatcher, hello, onLastDisconnect);
 		Thread.ofPlatform().daemon().name("open-crafter-accept").start(server::acceptLoop);
 		return server;
 	}
@@ -118,8 +121,16 @@ public final class SocketServer implements AutoCloseable {
 	}
 
 	private void unregister(Connection connection) {
-		if (connections.remove(connection)) {
-			connectionCount.decrementAndGet();
+		if (connections.remove(connection) && connectionCount.decrementAndGet() == 0) {
+			notifyLastDisconnect();
+		}
+	}
+
+	private void notifyLastDisconnect() {
+		try {
+			onLastDisconnect.run();
+		} catch (RuntimeException e) {
+			LOGGER.error("Last-disconnect listener failed", e);
 		}
 	}
 

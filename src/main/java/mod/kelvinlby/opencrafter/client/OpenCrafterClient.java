@@ -1,6 +1,7 @@
 package mod.kelvinlby.opencrafter.client;
 
 import mod.kelvinlby.opencrafter.OpenCrafter;
+import mod.kelvinlby.opencrafter.api.BackendLifecycle;
 import mod.kelvinlby.opencrafter.api.ModContext;
 import mod.kelvinlby.opencrafter.api.ModModule;
 import mod.kelvinlby.opencrafter.api.handler.HandlerRegistry;
@@ -34,8 +35,9 @@ public final class OpenCrafterClient implements ClientModInitializer {
 		ConfigStore config = ConfigStore.load(FabricLoader.getInstance().getConfigDir().resolve(OpenCrafter.MOD_ID + ".json"));
 		HandlerRegistry handlers = new HandlerRegistry();
 		Executor mainThread = task -> Minecraft.getInstance().execute(task);
-		TransportModule transport = TransportModule.start(config.get().transport, handlers, mainThread);
-		ModContext context = new ModContext(handlers, new SensorRegistry(), transport.events(), transport.frames(), config, mainThread);
+		BackendLifecycle lifecycle = new BackendLifecycle();
+		TransportModule transport = TransportModule.start(config.get().transport, handlers, lifecycle, mainThread);
+		ModContext context = new ModContext(handlers, new SensorRegistry(), transport.events(), lifecycle, transport.frames(), config, mainThread);
 		MODULES.forEach(module -> module.install(context));
 		ClientLifecycleEvents.CLIENT_STOPPING.register(client -> transport.close());
 		OpenCrafter.LOGGER.info("open-crafter ready with {} ops", handlers.all().size());

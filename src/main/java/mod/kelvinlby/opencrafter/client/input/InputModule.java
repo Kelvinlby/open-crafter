@@ -31,13 +31,14 @@ public final class InputModule implements ModModule {
 	public void install(ModContext context) {
 		config = context.config();
 		InputHooks.install(keys);
-		registerEvents();
+		registerEvents(context);
 		registerOps(context.handlers());
 	}
 
-	private void registerEvents() {
+	private void registerEvents(ModContext context) {
 		ClientTickEvents.START_CLIENT_TICK.register(client -> keys.onTickStart());
 		ClientPlayConnectionEvents.DISCONNECT.register((listener, client) -> client.execute(keys::releaseAll));
+		context.lifecycle().onLastDisconnect(() -> context.mainThread().execute(keys::releaseAll));
 	}
 
 	private void registerOps(HandlerRegistry handlers) {

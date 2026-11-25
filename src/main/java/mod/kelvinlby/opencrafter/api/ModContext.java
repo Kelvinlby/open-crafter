@@ -12,6 +12,7 @@ public record ModContext(
 	HandlerRegistry handlers,
 	SensorRegistry sensors,
 	EventSink events,
+	BackendLifecycle lifecycle,
 	FramePublisher frames,
 	ConfigStore config,
 	Executor mainThread
