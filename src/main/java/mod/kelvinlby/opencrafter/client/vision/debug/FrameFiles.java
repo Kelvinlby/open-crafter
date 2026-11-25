@@ -30,9 +30,8 @@ final class FrameFiles {
 				Path base = directory.resolve(prefix + spec.name());
 				if (spec.dtype() == DType.UINT8) {
 					writePng(base.resolveSibling(base.getFileName() + ".png"), spec, data);
-				} else {
-					writeNpy(base.resolveSibling(base.getFileName() + ".npy"), spec, data);
 				}
+				writeNpy(base.resolveSibling(base.getFileName() + ".npy"), spec, data);
 			}
 			Files.writeString(directory.resolve(prefix + "meta.txt"), meta.toString());
 		} catch (IOException | RuntimeException e) {

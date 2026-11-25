@@ -57,11 +57,26 @@ public final class DebugScenario {
 			return;
 		}
 		ticksInWorld++;
-		if (ticksInWorld == SETTLE_TICKS) {
+		if (ticksInWorld == SETTLE_TICKS || repeatsNow()) {
 			runCommands(player);
 		}
 		if (ticksInWorld > SETTLE_TICKS) {
 			player.setYRot(player.getYRot() + spinDegreesPerTick);
+			strafe(player);
+		}
+	}
+
+	/** {@code -Dopencrafter.vision.debugCommandPeriod=N} re-runs the commands every N ticks. */
+	private boolean repeatsNow() {
+		int period = Integer.getInteger("opencrafter.vision.debugCommandPeriod", 0);
+		return period > 0 && ticksInWorld > SETTLE_TICKS && (ticksInWorld - SETTLE_TICKS) % period == 0;
+	}
+
+	/** Moves the camera sideways by {@code -Dopencrafter.vision.debugStrafe} blocks per tick (camera translation). */
+	private static void strafe(LocalPlayer player) {
+		double step = Double.parseDouble(System.getProperty("opencrafter.vision.debugStrafe", "0"));
+		if (step != 0) {
+			player.setPos(player.getX() + step, player.getY(), player.getZ());
 		}
 	}
 
