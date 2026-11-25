@@ -29,8 +29,8 @@ last index you received.
 | Arg | Type | Meaning |
 |---|---|---|
 | `streams` | list of str, optional | Streams to publish, e.g. `["rgb", "flow"]`; `[]` stops capture |
-| `rate_mode` | str, optional | `tick` (default): first rendered frame after each client tick (20 Hz); `fixed_hz`; `max_fps`: every rendered frame |
-| `fixed_hz` | number, optional | Rate for `fixed_hz`, clamped to [0.1, 1000] |
+| `rate_mode` | str, optional | `fixed_hz` (default, 20 Hz): first rendered frame at or after each period boundary, independent of TPS; `tick`: first rendered frame after each client tick (follows TPS); `max_fps`: every rendered frame |
+| `fixed_hz` | number, optional | Rate for `fixed_hz` (default 20), clamped to [0.1, 1000] |
 
 Omitted args keep their value. `rate_mode` and `fixed_hz` are persisted
 (`vision.rateMode`, `vision.fixedHz` in `config/open-crafter.json`); `streams` is not.

@@ -13,7 +13,7 @@ Works on both OpenGL and Vulkan backends. The game's main thread never blocks on
 
 | Sensor | What |
 |---|---|
-| Vision | `rgb`: the final presented image (HUD and menus included) · `flow`: ground-truth forward optical flow · `flow_occluded`: visibility flag. Any combination per frame. Push rate: per client tick (default), fixed Hz, or every frame. |
+| Vision | `rgb`: the final presented image (HUD and menus included) · `flow`: ground-truth forward optical flow · `flow_occluded`: visibility flag. Any combination per frame. Push rate: fixed Hz (default 20 Hz), per client tick, or every frame. |
 | Status | Window resolution, dimension and position, yaw/pitch, health, hunger, air bubbles, status effects (level and time) |
 
 ## Executors
@@ -33,7 +33,7 @@ pip install ./python
 from opencrafter import Client
 
 with Client() as c:                      # finds the running game by itself
-    c.vision.configure(streams=["rgb", "flow", "flow_occluded"], rate_mode="tick")
+    c.vision.configure(streams=["rgb", "flow", "flow_occluded"], rate_mode="fixed_hz", fixed_hz=20)
     frames = c.frames()
     while True:
         f = frames.wait_next(timeout=1)  # f["rgb"] (H,W,4) u8, f["flow"] (H,W,2) f32, f["flow_occluded"] (H,W,1) u8

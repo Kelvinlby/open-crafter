@@ -5,12 +5,12 @@ public final class VisionConfig {
 	public enum RateMode {
 		/** One frame per client tick (20 Hz at normal tick rate). */
 		TICK,
-		/** A fixed frequency, see {@link #fixedHz}. */
+		/** A fixed frequency, see {@link #fixedHz}; the default, at 20 Hz. */
 		FIXED_HZ,
 		/** Every rendered frame. */
 		MAX_FPS
 	}
 
-	public RateMode rateMode = RateMode.TICK;
+	public RateMode rateMode = RateMode.FIXED_HZ;
 	public double fixedHz = 20.0;
 }
