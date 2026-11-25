@@ -14,7 +14,7 @@ Works on both OpenGL and Vulkan backends. The game's main thread never blocks on
 | Sensor | What |
 |---|---|
 | Vision | `rgb`: the final presented image (HUD and menus included) · `flow`: ground-truth forward optical flow · `flow_occluded`: visibility flag. Any combination per frame. Push rate: per client tick (default), fixed Hz, or every frame. |
-| Status | Window resolution, yaw/pitch, health, hunger, air bubbles, status effects (level and time) |
+| Status | Window resolution, dimension and position, yaw/pitch, health, hunger, air bubbles, status effects (level and time) |
 
 ## Executors
 

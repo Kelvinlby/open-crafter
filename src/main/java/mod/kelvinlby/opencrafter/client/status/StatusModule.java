@@ -7,7 +7,7 @@ import mod.kelvinlby.opencrafter.api.sensor.Sensor;
 
 import java.util.Map;
 
-/** Status sensor: resolution, rotation, health, hunger, air, status effects. */
+/** Status sensor: resolution, position, rotation, health, hunger, air, status effects. */
 public final class StatusModule implements ModModule {
 	private static final String NAME = "status";
 

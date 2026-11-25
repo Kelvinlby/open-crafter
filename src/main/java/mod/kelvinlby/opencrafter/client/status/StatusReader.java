@@ -4,6 +4,7 @@ import com.mojang.blaze3d.platform.Window;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.core.BlockPos;
 import net.minecraft.tags.FluidTags;
 import net.minecraft.util.Mth;
 import net.minecraft.world.effect.MobEffectInstance;
@@ -56,12 +57,30 @@ final class StatusReader {
 		result.put("game_mode", minecraft.gameMode.getPlayerMode().getName());
 		result.put("dead", player.isDeadOrDying());
 		result.put("selected_slot", player.getInventory().getSelectedSlot());
+		result.put("dimension", minecraft.level.dimension().identifier().toString());
+		result.put("position", position(player));
 		result.put("rotation", rotation(player));
 		result.put("health", health(player));
 		result.put("food", food(player.getFoodData()));
 		result.put("air", air(minecraft, player));
 		result.put("effects", effects(player));
 		return result;
+	}
+
+	/** Feet position in world coordinates (x east, y up, z south), as of the last client tick. */
+	private static Map<String, Object> position(LocalPlayer player) {
+		Map<String, Object> result = new LinkedHashMap<>();
+		result.put("x", player.getX());
+		result.put("y", player.getY());
+		result.put("z", player.getZ());
+		result.put("eye_y", player.getEyeY());
+		result.put("block", blockPosition(player.blockPosition()));
+		result.put("on_ground", player.onGround());
+		return result;
+	}
+
+	private static Map<String, Object> blockPosition(BlockPos pos) {
+		return Map.of("x", pos.getX(), "y", pos.getY(), "z", pos.getZ());
 	}
 
 	private static Map<String, Object> rotation(LocalPlayer player) {

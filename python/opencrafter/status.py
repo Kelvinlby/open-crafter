@@ -13,5 +13,5 @@ class Status:
         self._client = client
 
     def read(self) -> dict:
-        """Window size, rotation, health, food, air and status effects in one dict."""
+        """Window size, dimension, position, rotation, health, food, air and status effects in one dict."""
         return self._client.call("status.read")

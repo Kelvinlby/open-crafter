@@ -20,6 +20,13 @@ Python: `opencrafter.status.Status(client).read()`.
   "game_mode": "survival" | "creative" | "adventure" | "spectator",
   "dead": bool,
   "selected_slot": int,                       # hotbar 0-8
+  "dimension": str,                          # e.g. "minecraft:overworld"
+  "position": {
+    "x": float, "y": float, "z": float,       # feet, world coordinates (x east, y up, z south)
+    "eye_y": float,                           # camera height (y + eye height; lower while sneaking)
+    "block": {"x": int, "y": int, "z": int},  # block containing the feet (floor of x, y, z)
+    "on_ground": bool
+  },
   "rotation": {"yaw": float, "pitch": float, "yaw_raw": float},
   "health": {"current": float, "max": float, "absorption": float},
   "food": {"level": int, "saturation": float},
@@ -41,6 +48,8 @@ Python: `opencrafter.status.Status(client).read()`.
 }
 ```
 
+- `position` is the player's position after the last client tick (20 Hz), not the
+  interpolated render position; the vision frame meta `camera` has the rendered one.
 - `yaw` is wrapped to [-180, 180) (0 = south, 90 = west, like F3); `yaw_raw` is the unwrapped
   entity value that keeps accumulating while turning; `pitch` is in [-90, 90], positive = down.
 - Air bubbles follow `Hud.extractAirBubbles` exactly: `bubbles = ceil((supply - 2) * 10 / max)`,
