@@ -19,12 +19,18 @@ dependencies {
 	// Fabric API. This is technically optional, but you probably want it anyway.
 	implementation("net.fabricmc.fabric-api:fabric-api:${providers.gradleProperty("fabric_api_version").get()}")
 
-	testImplementation("org.junit.jupiter:junit-jupiter:5.11.4")
+	testImplementation(platform("org.junit:junit-bom:5.13.4"))
+	testImplementation("org.junit.jupiter:junit-jupiter")
 	testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 
 tasks.test {
 	useJUnitPlatform()
+	// Log4j (on the Minecraft classpath) writes logs/ into the working directory: keep it in build/.
+	val testRunDir = layout.buildDirectory.dir("test-run").get().asFile
+	workingDir = testRunDir
+	doFirst { testRunDir.mkdirs() }
+	systemProperty("opencrafter.projectDir", layout.projectDirectory.asFile.absolutePath)
 }
 
 tasks.processResources {
