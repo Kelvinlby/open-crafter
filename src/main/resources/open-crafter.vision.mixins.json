@@ -2,7 +2,9 @@
 	"required": true,
 	"package": "mod.kelvinlby.opencrafter.mixin.vision",
 	"compatibilityLevel": "JAVA_25",
-	"client": [],
+	"client": [
+		"MinecraftRenderFrameMixin"
+	],
 	"injectors": {
 		"defaultRequire": 1
 	},
