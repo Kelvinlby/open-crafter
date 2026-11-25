@@ -25,7 +25,7 @@ public final class VisionModule implements ModModule {
 		VisionCapture capture = new VisionCapture(settings, publisher, stats, flow);
 		VisionHooks.install(capture, flow);
 		ClientTickEvents.END_CLIENT_TICK.register(client -> capture.onClientTick());
-		VisionControl control = new VisionControl(settings, stats, publisher, true);
+		VisionControl control = new VisionControl(settings, stats, publisher);
 		applyStartupStreams(control);
 		new VisionOps(control).register(context.handlers());
 		VisionCommand.register(control);

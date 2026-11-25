@@ -49,10 +49,6 @@ final class FrameSnapshot implements AutoCloseable {
 		clear(hudMask, 0.0F);
 	}
 
-	boolean isBegun() {
-		return begun;
-	}
-
 	void copyWorldDepth(GpuTextureView depth) {
 		copyDepth(depth, worldDepth);
 	}

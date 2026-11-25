@@ -48,10 +48,6 @@ public final class VisionCapture {
 		flow.onFrameStart(request != null && request.settings().wantsFlow());
 	}
 
-	public boolean isCapturingFlow() {
-		return request != null && request.settings().wantsFlow();
-	}
-
 	/** After {@code GameRenderer.render()}: the main target now holds the final presented image. */
 	public void onFrameRendered(RenderTarget mainTarget) {
 		readbacks.drainReady(slot -> FramePublishing.publish(slot, publisher, stats));

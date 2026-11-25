@@ -24,7 +24,7 @@ public final class VisionSettings {
 		}
 
 		public boolean wantsFlow() {
-			return wants(VisionStream.FLOW) || wants(VisionStream.FLOW_OCCLUDED);
+			return streams.stream().anyMatch(VisionStream::isFlow);
 		}
 	}
 

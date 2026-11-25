@@ -46,10 +46,6 @@ public final class SizedTexture implements AutoCloseable {
 		return view;
 	}
 
-	public boolean isAllocated() {
-		return texture != null;
-	}
-
 	@Override
 	public void close() {
 		if (view != null) {

@@ -20,7 +20,4 @@ public final class FrameGeometry {
 		records.forEach(action);
 	}
 
-	public int size() {
-		return records.size();
-	}
 }

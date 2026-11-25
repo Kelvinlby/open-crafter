@@ -38,7 +38,7 @@ Returns the same map as `vision.status`.
 
 ### `vision.status` (any thread)
 
-Returns `streams`, `rate_mode`, `fixed_hz`, `has_readers`, `flow_supported`,
+Returns `streams`, `rate_mode`, `fixed_hz`, `has_readers`,
 `shader_pack_in_use`, `iris_loaded`, `frames_captured`, `frames_published`,
 `frames_dropped_busy_gpu` (all readback buffers still in flight), `frames_dropped_no_slot`
 (no free shared-memory slot), `last_frame_index`, `width`, `height`, `backend`.

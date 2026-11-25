@@ -18,19 +18,14 @@ public final class VisionControl {
 	private final VisionSettings settings;
 	private final VisionStats stats;
 	private final FramePublisher publisher;
-	private final boolean flowSupported;
 
-	public VisionControl(VisionSettings settings, VisionStats stats, FramePublisher publisher, boolean flowSupported) {
+	public VisionControl(VisionSettings settings, VisionStats stats, FramePublisher publisher) {
 		this.settings = settings;
 		this.stats = stats;
 		this.publisher = publisher;
-		this.flowSupported = flowSupported;
 	}
 
 	public void setStreams(Collection<VisionStream> streams) {
-		if (!flowSupported && streams.stream().anyMatch(VisionStream::isFlow)) {
-			throw new IllegalArgumentException("Optical flow streams are not supported in this build");
-		}
 		settings.setStreams(streams);
 	}
 
@@ -50,7 +45,6 @@ public final class VisionControl {
 		status.put("rate_mode", RateModes.wireName(snapshot.rateMode()));
 		status.put("fixed_hz", snapshot.fixedHz());
 		status.put("has_readers", publisher.hasReaders());
-		status.put("flow_supported", flowSupported);
 		status.put("shader_pack_in_use", ShaderModCompat.isShaderPackInUse());
 		status.put("iris_loaded", ShaderModCompat.isIrisLoaded());
 		status.putAll(stats.toMap());
