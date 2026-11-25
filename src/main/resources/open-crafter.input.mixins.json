@@ -2,7 +2,12 @@
 	"required": true,
 	"package": "mod.kelvinlby.opencrafter.mixin.input",
 	"compatibilityLevel": "JAVA_25",
-	"client": [],
+	"client": [
+		"KeyMappingAccessor",
+		"KeyMappingMixin",
+		"MinecraftMixin",
+		"ToggleKeyMappingAccessor"
+	],
 	"injectors": {
 		"defaultRequire": 1
 	},
