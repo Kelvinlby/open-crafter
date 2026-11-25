@@ -26,6 +26,11 @@ dependencies {
 
 tasks.test {
 	useJUnitPlatform()
+	// Log4j (on the Minecraft classpath) writes logs/ into the working directory: keep it in build/.
+	val testRunDir = layout.buildDirectory.dir("test-run").get().asFile
+	workingDir = testRunDir
+	doFirst { testRunDir.mkdirs() }
+	systemProperty("opencrafter.projectDir", layout.projectDirectory.asFile.absolutePath)
 }
 
 tasks.processResources {
