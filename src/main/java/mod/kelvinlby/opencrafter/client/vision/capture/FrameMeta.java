@@ -7,6 +7,7 @@ import java.util.Map;
  * Per-frame metadata published next to the streams. Captured on the render thread at the
  * moment the frame is captured, so it describes exactly the pixels being read back.
  *
+ * @param shaderPackInUse    an Iris shader pack rendered the world (flow is best effort, see docs/ops/vision.md)
  * @param flowFromFrameIndex index of the frame the flow streams refer to (-1 when none)
  */
 public record FrameMeta(
@@ -24,6 +25,7 @@ public record FrameMeta(
 	int width,
 	int height,
 	String backend,
+	boolean shaderPackInUse,
 	long flowFromFrameIndex
 ) {
 	public Map<String, Object> toMap() {
@@ -44,6 +46,7 @@ public record FrameMeta(
 		map.put("width", width);
 		map.put("height", height);
 		map.put("backend", backend);
+		map.put("shader_pack_in_use", shaderPackInUse);
 		map.put("flow_from_frame_index", flowFromFrameIndex);
 		return map;
 	}

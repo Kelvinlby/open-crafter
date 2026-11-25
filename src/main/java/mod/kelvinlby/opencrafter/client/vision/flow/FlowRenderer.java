@@ -65,11 +65,6 @@ public final class FlowRenderer implements FlowStage, AutoCloseable {
 	}
 
 	@Override
-	public long referenceFrameIndex() {
-		return previous.frameIndex;
-	}
-
-	@Override
 	public Output render(long frameIndex, int width, int height) {
 		armed = false;
 		current.ensureBegun(width, height);
@@ -77,14 +72,16 @@ public final class FlowRenderer implements FlowStage, AutoCloseable {
 		current.finish(zeroToOne());
 		flowOut.ensureSize(width, height);
 		occludedOut.ensureSize(width, height);
-		if (hasReference(width, height)) {
+		boolean hasReference = hasReference(width, height);
+		long from = hasReference ? previous.frameIndex : -1L;
+		if (hasReference) {
 			computeFlow(width, height);
 		} else {
 			clearOutputs();
 		}
 		current.frameIndex = frameIndex;
 		swapSnapshots();
-		return new Output(flowOut.texture(), occludedOut.texture());
+		return new Output(flowOut.texture(), occludedOut.texture(), from);
 	}
 
 	@Override

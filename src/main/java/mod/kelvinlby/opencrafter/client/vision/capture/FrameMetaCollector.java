@@ -1,6 +1,7 @@
 package mod.kelvinlby.opencrafter.client.vision.capture;
 
 import com.mojang.blaze3d.systems.RenderSystem;
+import mod.kelvinlby.opencrafter.client.vision.compat.ShaderModCompat;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.state.GameRenderState;
 import net.minecraft.client.renderer.state.level.CameraRenderState;
@@ -31,6 +32,7 @@ final class FrameMetaCollector {
 			width,
 			height,
 			backendName(),
+			ShaderModCompat.isShaderPackInUse(),
 			flowFrom
 		);
 	}

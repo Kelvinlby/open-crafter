@@ -85,25 +85,23 @@ public final class VisionCapture {
 
 	private void capture(CaptureRequest current, RenderTarget mainTarget) {
 		GpuTextureView color = mainTarget.getColorTextureView();
-		if (color == null) {
-			return;
-		}
 		int width = mainTarget.width;
 		int height = mainTarget.height;
-		ReadbackSlot slot = readbacks.acquire(current.settings().streams(), width, height);
+		ReadbackSlot slot = color == null ? null : readbacks.acquire(current.settings().streams(), width, height);
 		if (slot == null) {
 			stats.onDroppedNoReadback();
 			flow.onFrameDropped();
 			return;
 		}
 		long frameIndex = nextFrameIndex++;
-		long flowFrom = current.settings().wantsFlow() ? flow.referenceFrameIndex() : -1L;
+		FlowStage.Output flowOutput = current.settings().wantsFlow() ? flow.render(frameIndex, width, height) : null;
+		long flowFrom = flowOutput == null ? -1L : flowOutput.fromFrameIndex();
 		slot.begin(FrameMetaCollector.collect(frameIndex, current.nanos(), current.clientTick(), width, height, flowFrom));
 		if (current.settings().wants(VisionStream.RGB)) {
 			slot.copy(VisionStream.RGB, rgbPass.run(color, width, height));
 		}
-		if (current.settings().wantsFlow()) {
-			copyFlow(current.settings(), slot, flow.render(frameIndex, width, height));
+		if (flowOutput != null) {
+			copyFlow(current.settings(), slot, flowOutput);
 		}
 		stats.onCaptured(width, height);
 		stats.setBackend(slot.meta().backend());

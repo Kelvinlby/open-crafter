@@ -8,7 +8,7 @@ import java.util.function.BiConsumer;
 public final class FrameGeometry {
 	private final Map<SubmitKey, GeometryRecord> records = new HashMap<>();
 
-	GeometryRecord recordFor(SubmitKey key) {
+	public GeometryRecord recordFor(SubmitKey key) {
 		return records.computeIfAbsent(key, ignored -> new GeometryRecord(key.phase()));
 	}
 
