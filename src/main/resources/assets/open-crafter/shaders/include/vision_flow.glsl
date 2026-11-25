@@ -68,28 +68,37 @@ ivec2 vision_texelAt(vec2 pixel) {
 }
 
 // True when a surface point at view distance `distance` that projects to `pixel` is the visible
-// surface of `depthTex`: it must lie within the depth range of the 2x2 texels around the sample
-// position (robust at grazing angles), plus a distance-proportional tolerance.
+// surface of `depthTex`. The reprojected position is sub-pixel, so near a depth discontinuity
+// the texel it falls in may belong to the other surface even though the point is visible.
+// The point therefore counts as visible when
+//  - some texel of the 3x3 neighbourhood of the texel it falls in holds the same surface
+//    (distance within tolerance), or
+//  - it lies inside the depth range of the 2x2 bilinear footprint (surfaces at grazing angles,
+//    whose depth changes by more than the tolerance from one texel to the next).
+// A true disocclusion (something now in front over the whole neighbourhood, or the surface
+// gone so everything is farther) matches neither.
 bool vision_matchesDepth(sampler2D depthTex, mat4 invProj, vec2 pixel, float distance, float clearDepth) {
-    ivec2 base = ivec2(floor(pixel - 0.5));
     ivec2 limit = ivec2(ScreenSize.xy) - 1;
+    ivec2 center = vision_texelAt(pixel);
+    for (int i = 0; i < 9; i++) {
+        ivec2 texel = clamp(center + ivec2(i % 3 - 1, i / 3 - 1), ivec2(0), limit);
+        float d = vision_texelDistance(depthTex, invProj, texel, clearDepth);
+        if (distance >= FAR_AWAY ? d >= FAR_AWAY : abs(d - distance) <= vision_tolerance(distance)) {
+            return true;
+        }
+    }
+    if (distance >= FAR_AWAY) {
+        return false;
+    }
+    ivec2 base = ivec2(floor(pixel - 0.5));
     float nearest = FAR_AWAY;
     float farthest = 0.0;
     for (int i = 0; i < 4; i++) {
-        ivec2 texel = clamp(base + ivec2(i & 1, i >> 1), ivec2(0), limit);
-        float d = vision_texelDistance(depthTex, invProj, texel, clearDepth);
+        float d = vision_texelDistance(depthTex, invProj, clamp(base + ivec2(i & 1, i >> 1), ivec2(0), limit), clearDepth);
         nearest = min(nearest, d);
         farthest = max(farthest, d);
     }
-    if (distance >= FAR_AWAY) {
-        return farthest >= FAR_AWAY;
-    }
-    float tolerance = vision_tolerance(distance);
-    return distance >= nearest - tolerance && distance <= farthest + tolerance;
-}
-
-bool vision_covered(sampler2D mask, vec2 pixel) {
-    return texelFetch(mask, vision_texelAt(pixel), 0).r > 0.5;
+    return distance >= nearest && distance <= farthest;
 }
 
 bool vision_handCovers(sampler2D handDepth, vec2 pixel, float clearDepth) {

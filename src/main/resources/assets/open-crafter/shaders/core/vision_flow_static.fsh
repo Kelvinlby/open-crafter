@@ -11,7 +11,6 @@ uniform sampler2D PrevWorldDepth;
 uniform sampler2D PrevHandDepth;
 uniform sampler2D CurWorldDepth;
 uniform sampler2D CurHandDepth;
-uniform sampler2D CurHudMask;
 
 layout(location = 0) in vec2 texCoord;
 
@@ -36,8 +35,7 @@ vec4 surfaceClip(vec2 ndc, float depth, out float distance) {
 bool isOccludedAt(vec2 pixel, float distance) {
     return !vision_insideScreen(pixel)
         || !vision_matchesDepth(CurWorldDepth, CurInvProj, pixel, distance, DepthInfo.z)
-        || vision_handCovers(CurHandDepth, pixel, DepthInfo.z)
-        || vision_covered(CurHudMask, pixel);
+        || vision_handCovers(CurHandDepth, pixel, DepthInfo.z);
 }
 
 void main() {

@@ -8,7 +8,6 @@
 
 uniform sampler2D PrevDepth;       // reference world depth, or reference hand depth with HAND
 uniform sampler2D CurHandDepth;
-uniform sampler2D CurHudMask;
 #ifndef HAND
 uniform sampler2D CurWorldDepth;
 #endif
@@ -36,7 +35,7 @@ bool wasVisible() {
 }
 
 bool isOccludedAt(vec2 pixel, float distance) {
-    if (!vision_insideScreen(pixel) || vision_covered(CurHudMask, pixel)) {
+    if (!vision_insideScreen(pixel)) {
         return true;
     }
 #ifdef HAND
