@@ -2,25 +2,37 @@
 	"schemaVersion": 1,
 	"id": "open-crafter",
 	"version": "${version}",
-	"name": "open-crafter",
-	"description": "This is an example description! Tell everyone what your mod is about!",
+	"name": "Open Crafter",
+	"description": "Turns the Minecraft player into an embodied AI agent: sensors (vision, status) and executors (input, inventory) exposed to an external backend over shared memory and a Unix domain socket.",
 	"authors": [
-		"Me!"
+		"Kelvin"
 	],
-	"contact": {
-		"homepage": "https://fabricmc.net/",
-		"sources": "https://github.com/FabricMC/fabric-example-mod"
-	},
+	"contact": {},
 	"license": "GPL-3.0-or-later",
 	"icon": "assets/open-crafter/icon.png",
 	"environment": "*",
 	"entrypoints": {
 		"main": [
 			"mod.kelvinlby.opencrafter.OpenCrafter"
+		],
+		"client": [
+			"mod.kelvinlby.opencrafter.client.OpenCrafterClient"
 		]
 	},
 	"mixins": [
-		"open-crafter.mixins.json"
+		"open-crafter.mixins.json",
+		{
+			"config": "open-crafter.vision.mixins.json",
+			"environment": "client"
+		},
+		{
+			"config": "open-crafter.input.mixins.json",
+			"environment": "client"
+		},
+		{
+			"config": "open-crafter.inventory.mixins.json",
+			"environment": "client"
+		}
 	],
 	"depends": {
 		"fabricloader": ">=0.20.1",
