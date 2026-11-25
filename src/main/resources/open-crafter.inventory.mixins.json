@@ -2,7 +2,12 @@
 	"required": true,
 	"package": "mod.kelvinlby.opencrafter.mixin.inventory",
 	"compatibilityLevel": "JAVA_25",
-	"client": [],
+	"client": [
+		"AnvilScreenAccessor",
+		"ContainerScreenInvoker",
+		"CreativeScreenAccessor",
+		"MerchantScreenAccessor"
+	],
 	"injectors": {
 		"defaultRequire": 1
 	},
