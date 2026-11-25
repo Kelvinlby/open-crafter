@@ -91,7 +91,8 @@ Rigid world geometry and entities are exact; particles are included when feasibl
 - `input.*`: relative rotation, attack/use (left/right click), hotbar selection, any
   `KeyMapping` by id (respecting the user's binding), raw screen keys (Esc, Enter, ...),
   text typing. Holds are leases: re-asserting a key keeps it held; it is released if not
-  re-asserted within `input.holdLeaseMillis`, or explicitly.
+  re-asserted within `input.holdLeaseMillis`, or explicitly, and all holds are released when
+  the last backend disconnects (`BackendLifecycle`).
 - `inventory.*`: every container interaction the vanilla client can send.
 - Each module documents its ops in `docs/ops/<module>.md` and ships Python wrappers in
   `python/opencrafter/`.

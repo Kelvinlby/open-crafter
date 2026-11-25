@@ -13,6 +13,7 @@ u32 little-endian length. Two reading modes:
 """
 from __future__ import annotations
 
+import functools
 import itertools
 import logging
 import os
@@ -293,6 +294,34 @@ class Client:
                 raise RuntimeError("the game did not announce a frame ring")
             self._frames = FrameReader(self.shm_path, client=self)
         return self._frames
+
+    # ------------------------------------------------------------- feature wrappers
+
+    @functools.cached_property
+    def input(self):
+        """``input.*`` executors: rotate, keys/holds, hotbar, screen keys, typing."""
+        from .input import Input
+        return Input(self)
+
+    @functools.cached_property
+    def status(self):
+        """The status sensor (``status.read``)."""
+        from .status import Status
+        return Status(self)
+
+    @functools.cached_property
+    def vision(self):
+        """``vision.*`` ops bound to this client, e.g. ``client.vision.configure(streams=[...])``."""
+        from . import vision
+        from .modules import bind_module
+        return bind_module(vision, self)
+
+    @functools.cached_property
+    def inventory(self):
+        """``inventory.*`` ops bound to this client, e.g. ``client.inventory.quick_move(36)``."""
+        from . import inventory
+        from .modules import bind_module
+        return bind_module(inventory, self)
 
     # -------------------------------------------------------------------- closing
 
