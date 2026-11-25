@@ -72,6 +72,8 @@ Hook points (all in `mixin/vision`, delegating to `client.vision.VisionHooks`):
 | `RenderTypeFeatureRenderer.prepareGroup/getVertexBuilder` | tee the vertices of keyed submits into the recorder |
 | `QuadParticleGroup`, `QuadParticleRenderState.add`, `QuadParticleFeatureRenderer` | per-particle quads |
 | `GuiRenderer.executeDrawRange` TAIL | replay GUI draws into the HUD mask |
+| `GuiRenderer.addElementToMesh` (around `buildVertices`), `GuiRenderer.submitBlitFromItemAtlas` | record every GUI element's vertices for GUI motion; tag item icons with their item |
+| Iris `HandRenderer.renderSolid` / `setupGlState` (only when Iris is installed) | shader-pack hand: depth before/after its solid hand pass, its hand projection |
 
 **RGB.** A full-screen pass with an own pipeline samples the main render target into an
 RGBA8 texture, flipping rows (both renderpearl backends store row 0 at NDC y = −1, the image
@@ -98,8 +100,22 @@ moving objects. When frame *k* is captured, own GPU passes compute flow from fra
    hand, and must be on screen and in front of the camera. Objects that vanished or changed
    vertex layout are occluded. The HUD is an overlay, not scene geometry: points moving under
    it are not flagged.
-4. *Resolve*: pixels covered by the reference frame's HUD get flow 0 and occluded 0; rows
-   are flipped and y negated.
+4. *GUI*: every GUI element (blit, item icon, glyph, filled rectangle) is recorded with its
+   vertices, UVs and alpha. Elements are matched between the frames by pipeline + texture +
+   texture region + vertex count (item icons by the item's model identity instead, because the
+   GUI item atlas is re-packed as items come and go); among equal ones, those that stayed put match themselves and
+   the rest pair up nearest-first (picking one of three identical stacks leaves the other two
+   matched to themselves and the third to the copy on the cursor). Verified in game:
+   shift-click (item jumps to its new slot, the slot it lands on is occluded), pick up / put
+   down (item follows the cursor), hotbar selection (+160 px for 4 slots at GUI scale 2),
+   creative-tab scrolling (items move exactly 2 rows, rows scrolled out are occluded). Elements that moved are
+   drawn where they were, with their per-vertex displacement and the texture's alpha test;
+   elements that vanished are drawn as occluded; elements that moved or appeared are drawn where
+   they are now into a cover mask.
+5. *Resolve*: pixels of moved/vanished GUI elements get the element's motion (occluded if it
+   vanished, left the screen or its scissor area); other HUD/menu pixels get flow 0 and are
+   occluded only if a moved/new GUI element covers them now; world pixels are also occluded
+   when they land under such an element. Rows are flipped and y negated.
 
 The HUD mask replays the GUI's own draw calls (same buffers, projection, scissor) into an R8
 target; a GUI fragment counts when its alpha ≥ 0.1. The vignette and nausea/portal overlays
@@ -114,7 +130,10 @@ tint the world rather than cover it and are not in the mask.
 | First-person hand and held item | exact (own projection) |
 | Quad particles (smoke, flame, cloud, ...) | exact per quad, if the particle wrote depth; translucent particles without depth writes show the surface behind them |
 | Mined/placed/changed blocks | old surface becomes occluded (depth no longer matches) |
-| HUD, menus, chat | flow 0, occluded 0 |
+| HUD, menus, chat that stay put | flow 0, occluded 0 |
+| GUI elements that move: carried item following the mouse, item moved between slots (shift-click, number keys), scrolled lists, hotbar selection frame | exact per element (vertex-to-vertex) |
+| GUI elements that disappear (closing a screen, an item leaving a slot) | occluded |
+| What a moving or newly shown GUI element covers (the slot an item lands on, the world behind a menu that opens) | occluded |
 
 Approximations and known limits:
 
@@ -130,6 +149,10 @@ Approximations and known limits:
   surface of a moving object).
 - Animated water/lava surfaces are flat in vanilla, so static is exact; texture animation
   is not motion.
+- GUI elements are matched by what they show and where; if a menu redraws an identical sprite
+  elsewhere in the same frame it moved from, the nearest copy is taken. The player model and
+  other picture-in-picture renders in screens are images of a separate 3D render and count as
+  static. The OS mouse cursor is not part of the image.
 - Screen effects drawn over the world (fire overlay, underwater/powder-snow/pumpkin
   overlays) are not masked: underneath pixels carry the world flow. The pumpkin and spyglass
   overlays are GUI draws and are masked where opaque.
@@ -148,13 +171,17 @@ Approximations and known limits:
 Verified in a dev client with Sodium 0.9.2 + Iris 1.11.7 (Minecraft 26.3, OpenGL):
 
 - Iris installed, shaders off: RGB and flow work exactly as without Iris.
-- With a shader pack active: RGB is the final composited image (verified with a test pack
-  that tints the final pass); no crash, no image corruption. Flow is **best effort**: Iris
-  renders the first-person hand itself (it disables the vanilla hand submission), so hand
-  pixels are not recognised and are reprojected as if they were world surfaces, and a pack
-  may write a depth that differs from the vanilla one (e.g. no depth for some passes).
-  `meta.shader_pack_in_use` / `vision.status.shader_pack_in_use` report this; backends that
-  need exact flow should run without a shader pack.
+- With a shader pack active: RGB is the final composited image; no crash, no image corruption.
+  Iris draws the first-person hand itself, inside the level pass and with its own projection;
+  the sensor hooks that pass (depth before/after the solid hand, Iris' hand projection), so the
+  hand and held item keep exact flow (verified with Complementary r5.8.1: arm swing tracked as
+  in vanilla). Translucent held items drawn in Iris' translucent hand pass are not separated.
+  Flow is otherwise **best effort**: whatever a pack moves in its vertex shaders (waving
+  leaves, grass, water waves) is not known to the sensor, so those surfaces are reprojected as
+  static and their moving edges come out occluded or slightly wrong; a pack may also write a
+  depth that differs from the vanilla one. Turn waving foliage off in the pack's settings (or
+  use no pack) where exact flow matters. `meta.shader_pack_in_use` /
+  `vision.status.shader_pack_in_use` report the state.
 - Not verified: Iris on the Vulkan backend, and real-world shader packs (none available
   offline). To verify: install a pack, capture `rgb,flow,flow_occluded` while turning the
   camera and walking past mobs, and compare the photometric warp error (see below) against

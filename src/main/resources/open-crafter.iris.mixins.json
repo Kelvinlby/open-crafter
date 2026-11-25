@@ -1,0 +1,12 @@
+{
+	"required": false,
+	"package": "mod.kelvinlby.opencrafter.mixin.iris",
+	"plugin": "mod.kelvinlby.opencrafter.mixin.IrisMixinPlugin",
+	"compatibilityLevel": "JAVA_25",
+	"client": [
+		"IrisHandRendererMixin"
+	],
+	"injectors": {
+		"defaultRequire": 0
+	}
+}

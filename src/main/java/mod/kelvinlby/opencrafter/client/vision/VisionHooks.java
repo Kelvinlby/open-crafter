@@ -5,14 +5,17 @@ import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.mojang.renderpearl.api.buffers.GpuBufferSlice;
 import com.mojang.renderpearl.api.textures.GpuTextureView;
 import mod.kelvinlby.opencrafter.client.vision.capture.VisionCapture;
+import mod.kelvinlby.opencrafter.client.vision.compat.ShaderModCompat;
 import mod.kelvinlby.opencrafter.client.vision.flow.FlowRenderer;
 import mod.kelvinlby.opencrafter.client.vision.hud.GuiMaskDraw;
 import mod.kelvinlby.opencrafter.client.vision.record.MotionRecorder;
 import mod.kelvinlby.opencrafter.client.vision.record.RecordPhase;
 import mod.kelvinlby.opencrafter.client.vision.record.SubmitKey;
 import mod.kelvinlby.opencrafter.client.vision.record.TrackedSubmitList;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.feature.submit.SubmitNode;
 import net.minecraft.client.renderer.rendertype.RenderType;
+import net.minecraft.client.renderer.state.gui.GuiElementRenderState;
 import net.minecraft.client.renderer.state.level.CameraRenderState;
 import org.joml.Matrix4fc;
 import org.jspecify.annotations.Nullable;
@@ -82,6 +85,36 @@ public final class VisionHooks {
 	public static void onHandRendered(RenderTarget main, GpuTextureView handDepth) {
 		if (flowArmed()) {
 			flow.onHandRendered(main, handDepth);
+		}
+	}
+
+	/** Shader mods (Iris) draw the hand inside the level pass with their own projection. */
+	public static void beforeShaderHand() {
+		if (flowArmed() && ShaderModCompat.isShaderPackInUse()) {
+			flow.beforeShaderHand(Minecraft.getInstance().gameRenderer.mainRenderTarget());
+		}
+	}
+
+	public static void afterShaderHand() {
+		if (flowArmed()) {
+			flow.afterShaderHand(Minecraft.getInstance().gameRenderer.mainRenderTarget());
+		}
+	}
+
+	public static void onShaderHandProjection(Matrix4fc projection) {
+		if (flowArmed() && ShaderModCompat.isShaderPackInUse()) {
+			flow.onShaderHandProjection(projection);
+		}
+	}
+
+	public static VertexConsumer wrapGuiVertices(GuiElementRenderState element, VertexConsumer builder) {
+		return flowArmed() ? flow.wrapGuiVertices(element, builder) : builder;
+	}
+
+	/** The GUI draws item icons as blits from a re-packed atlas; remember which item each one is. */
+	public static void tagItemIcon(GuiElementRenderState blit, Object modelIdentity) {
+		if (flowArmed()) {
+			flow.tagItemIcon(blit, modelIdentity);
 		}
 	}
 

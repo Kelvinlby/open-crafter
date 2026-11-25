@@ -33,6 +33,23 @@ public final class VisionPipelines {
 		.addAttribute("CurPosition", GpuFormat.RGBA32_FLOAT)
 		.build();
 
+	/** Name of the uniform block in shaders/core/vision_gui_motion.*. */
+	public static final String GUI_UNIFORM_BLOCK = "VisionGui";
+
+	/** Vertex layout of GUI elements for the GUI flow passes (see GuiMotionMesh). */
+	public static final VertexFormat GUI_MOTION_FORMAT = VertexFormat.builder(0)
+		.addAttribute("PrevPos", GpuFormat.RG32_FLOAT)
+		.addAttribute("CurPos", GpuFormat.RG32_FLOAT)
+		.addAttribute("UV0", GpuFormat.RG32_FLOAT)
+		.addAttribute("Alpha", GpuFormat.R32_FLOAT)
+		.addAttribute("Clip", GpuFormat.RGBA32_FLOAT)
+		.addAttribute("Vanished", GpuFormat.R32_FLOAT)
+		.build();
+
+	private static final BindGroupLayout GUI_UNIFORMS = BindGroupLayout.builder()
+		.withUniform(GUI_UNIFORM_BLOCK, UniformType.UNIFORM_BUFFER)
+		.build();
+
 	private static final BindGroupLayout FLOW_UNIFORMS = BindGroupLayout.builder()
 		.withUniform(FLOW_UNIFORM_BLOCK, UniformType.UNIFORM_BUFFER)
 		.build();
@@ -49,6 +66,19 @@ public final class VisionPipelines {
 		fullscreen("vision_copy_depth", false)
 			.withFragmentShader(OpenCrafter.id("core/vision_copy_depth"))
 			.withBindGroupLayout(BindGroupLayouts.IN_SAMPLER)
+			.withColorTargetState(target(DEPTH_COPY_FORMAT))
+			.build()
+	);
+
+	/** Zero-fills a float render target with a full-screen draw (see GuiFlowRenderer). */
+	public static final RenderPipeline ZERO_FLOAT = RenderPipelines.registerOptional(zero("vision_zero_float", FLOW_WORK_FORMAT));
+	public static final RenderPipeline ZERO_MASK = RenderPipelines.registerOptional(zero("vision_zero_mask", MASK_FORMAT));
+
+	/** Keeps the depth a shader mod's own hand pass wrote; everything else stays "no hand". */
+	public static final RenderPipeline HAND_DEPTH_DIFF = RenderPipelines.registerOptional(
+		fullscreen("vision_hand_depth_diff", false)
+			.withFragmentShader(OpenCrafter.id("core/vision_hand_depth_diff"))
+			.withBindGroupLayout(samplers("InSampler", "PreHandDepth"))
 			.withColorTargetState(target(DEPTH_COPY_FORMAT))
 			.build()
 	);
@@ -75,10 +105,15 @@ public final class VisionPipelines {
 			.build()
 	);
 
+	private static final RenderPipeline GUI_MOTION = RenderPipelines.registerOptional(guiPass("vision_gui_motion", false, false));
+	private static final RenderPipeline GUI_MOTION_TEXTURED = RenderPipelines.registerOptional(guiPass("vision_gui_motion_textured", true, false));
+	private static final RenderPipeline GUI_COVER = RenderPipelines.registerOptional(guiPass("vision_gui_cover", false, true));
+	private static final RenderPipeline GUI_COVER_TEXTURED = RenderPipelines.registerOptional(guiPass("vision_gui_cover_textured", true, true));
+
 	public static final RenderPipeline FLOW_RESOLVE = RenderPipelines.registerOptional(
 		fullscreen("vision_flow_resolve", true)
 			.withFragmentShader(OpenCrafter.id("core/vision_flow_resolve"))
-			.withBindGroupLayout(samplers("FlowWork", "PrevHudMask"))
+			.withBindGroupLayout(samplers("FlowWork", "PrevHudMask", "GuiFlow", "CurGuiCover"))
 			.withColorTargetState(0, target(FLOW_FORMAT))
 			.withColorTargetState(1, target(OCCLUDED_FORMAT))
 			.build()
@@ -89,6 +124,40 @@ public final class VisionPipelines {
 
 	/** Forces class initialisation so the pipelines are compiled with the next resource reload. */
 	public static void bootstrap() {
+	}
+
+	private static RenderPipeline zero(String name, GpuFormat format) {
+		return fullscreen(name, false)
+			.withFragmentShader(OpenCrafter.id("core/vision_zero"))
+			.withColorTargetState(target(format))
+			.build();
+	}
+
+	/** GUI flow pass: motion (where elements were) or cover (where they are now). */
+	public static RenderPipeline guiPass(boolean textured, boolean cover) {
+		if (cover) {
+			return textured ? GUI_COVER_TEXTURED : GUI_COVER;
+		}
+		return textured ? GUI_MOTION_TEXTURED : GUI_MOTION;
+	}
+
+	private static RenderPipeline guiPass(String name, boolean textured, boolean cover) {
+		RenderPipeline.Builder builder = RenderPipeline.builder()
+			.withLocation(OpenCrafter.id("pipeline/" + name))
+			.withVertexShader(OpenCrafter.id("core/vision_gui_motion"))
+			.withFragmentShader(OpenCrafter.id("core/vision_gui_motion"))
+			.withBindGroupLayout(GUI_UNIFORMS)
+			.withVertexBinding(0, GUI_MOTION_FORMAT)
+			.withPrimitiveTopology(PrimitiveTopology.TRIANGLES)
+			.withCull(false)
+			.withColorTargetState(target(cover ? MASK_FORMAT : FLOW_WORK_FORMAT));
+		if (textured) {
+			builder.withShaderDefine("HAS_UV0").withBindGroupLayout(BindGroupLayouts.SAMPLER0);
+		}
+		if (cover) {
+			builder.withShaderDefine("COVER");
+		}
+		return builder.build();
 	}
 
 	static RenderPipeline.Builder fullscreen(String name, boolean flipY) {

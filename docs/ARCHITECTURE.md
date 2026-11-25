@@ -93,7 +93,9 @@ previous published frame k-1**: pixel p of frame k-1 shows surface point S; `flo
 where S projects in frame k minus p. "Published" matters: with a 20 Hz push rate the
 flow spans the two pushed frames, not two consecutive rendered frames.
 `flow_occluded[p] = 1` when S is hidden in frame k (behind something, mined/removed,
-left the view, entity despawned). HUD/menu pixels have flow 0 and are not occluded.
+left the view, entity despawned). HUD/menu pixels that stay put have flow 0 and are not
+occluded; GUI elements that move (carried item, items moved between slots, scrolling) get
+their own motion, and what they newly cover is occluded.
 Rigid world geometry and entities are exact; particles are included when feasible.
 
 ## Executors (summary)
