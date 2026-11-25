@@ -6,6 +6,7 @@ import mod.kelvinlby.opencrafter.api.ModContext;
 import mod.kelvinlby.opencrafter.api.ModModule;
 import mod.kelvinlby.opencrafter.api.handler.HandlerRegistry;
 import mod.kelvinlby.opencrafter.api.sensor.SensorRegistry;
+import mod.kelvinlby.opencrafter.client.command.TransportCommand;
 import mod.kelvinlby.opencrafter.client.input.InputModule;
 import mod.kelvinlby.opencrafter.client.inventory.InventoryModule;
 import mod.kelvinlby.opencrafter.client.status.StatusModule;
@@ -36,9 +37,10 @@ public final class OpenCrafterClient implements ClientModInitializer {
 		HandlerRegistry handlers = new HandlerRegistry();
 		Executor mainThread = task -> Minecraft.getInstance().execute(task);
 		BackendLifecycle lifecycle = new BackendLifecycle();
-		TransportModule transport = TransportModule.start(config.get().transport, handlers, lifecycle, mainThread);
+		TransportModule transport = TransportModule.start(config.get().transport.copy(), handlers, lifecycle, mainThread);
 		ModContext context = new ModContext(handlers, new SensorRegistry(), transport.events(), lifecycle, transport.frames(), config, mainThread);
 		MODULES.forEach(module -> module.install(context));
+		TransportCommand.register(transport, config);
 		ClientLifecycleEvents.CLIENT_STOPPING.register(client -> transport.close());
 		OpenCrafter.LOGGER.info("open-crafter ready with {} ops", handlers.all().size());
 	}

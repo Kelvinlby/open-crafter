@@ -12,6 +12,9 @@ public final class PrivateFiles {
 	private static final Set<PosixFilePermission> OWNER_READ_WRITE =
 		EnumSet.of(PosixFilePermission.OWNER_READ, PosixFilePermission.OWNER_WRITE);
 
+	private static final Set<PosixFilePermission> OWNER_ALL =
+		EnumSet.of(PosixFilePermission.OWNER_READ, PosixFilePermission.OWNER_WRITE, PosixFilePermission.OWNER_EXECUTE);
+
 	private PrivateFiles() {
 	}
 
@@ -21,6 +24,16 @@ public final class PrivateFiles {
 			Files.setPosixFilePermissions(path, OWNER_READ_WRITE);
 		} catch (UnsupportedOperationException ignored) {
 			// Non-POSIX file system (Windows): rely on the user profile's ACLs.
+		}
+	}
+
+	/** Creates {@code dir} (and parents) and restricts it to rwx------ where POSIX permissions exist. */
+	public static void createPrivateDirectory(Path dir) throws IOException {
+		Files.createDirectories(dir);
+		try {
+			Files.setPosixFilePermissions(dir, OWNER_ALL);
+		} catch (UnsupportedOperationException ignored) {
+			// Windows: the user's temp folder is already private.
 		}
 	}
 

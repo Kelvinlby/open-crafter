@@ -14,6 +14,7 @@ import java.nio.channels.SocketChannel;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 /**
  * One backend connection: a reader thread that decodes and dispatches requests in arrival
@@ -29,6 +30,8 @@ final class Connection {
 	private final Consumer<Connection> onClosed;
 	private final Outbox outbox = new Outbox();
 	private final AtomicBoolean open = new AtomicBoolean(true);
+	private Supplier<byte[]> hello;
+	private Handshake handshake;
 
 	Connection(long id, SocketChannel channel, Dispatcher dispatcher, Consumer<Connection> onClosed) {
 		this.id = id;
@@ -37,9 +40,16 @@ final class Connection {
 		this.onClosed = onClosed;
 	}
 
-	/** Queues {@code hello} as the very first message, then starts both threads. */
-	void start(byte[] hello) {
-		outbox.offerReply(hello);
+	/**
+	 * Starts both threads. Without a token {@code hello} is queued as the very first message;
+	 * with one it is sent only once the backend authenticated.
+	 */
+	void start(Supplier<byte[]> hello, String token) {
+		this.hello = hello;
+		this.handshake = token == null ? null : new Handshake(token);
+		if (handshake == null) {
+			outbox.offerReply(hello.get());
+		}
 		Thread writer = newThread("writer", this::writeLoop);
 		outbox.bindWriter(writer);
 		writer.start();
@@ -89,9 +99,25 @@ final class Connection {
 
 	private void handleMessage(MsgPackReader reader, byte[] data, int offset, int length) {
 		Map<String, Object> message = decodeMessage(reader, data, offset, length);
-		if (message != null) {
-			dispatcher.dispatch(message, this::sendReply);
+		if (message == null) {
+			return;
 		}
+		if (handshake == null) {
+			dispatcher.dispatch(message, this::sendReply);
+		} else {
+			authenticate(message);
+		}
+	}
+
+	/** The first message of a TCP connection: a matching token unlocks it, anything else closes it. */
+	private void authenticate(Map<String, Object> message) {
+		if (!handshake.accepts(message)) {
+			LOGGER.warn("Backend connection {} sent a wrong or missing token; closing it", id);
+			close();
+			return;
+		}
+		handshake = null;
+		sendReply(hello.get());
 	}
 
 	@SuppressWarnings("unchecked")

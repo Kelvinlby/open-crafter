@@ -1,6 +1,8 @@
 """Control-channel client for open-crafter (see docs/PROTOCOL.md).
 
-One Unix-domain-socket connection to the game. Requests are MessagePack maps framed by a
+One connection to the game: a Unix domain socket, or TCP on loopback (Windows) authenticated
+with a token. Where to connect is resolved by ``opencrafter.discovery`` (explicit argument,
+then ``OPENCRAFTER_ENDPOINT``, then the discovery files the game writes). Requests are MessagePack maps framed by a
 u32 little-endian length. Two reading modes:
 
 * ``background=True`` (default): a daemon thread reads the socket, resolves replies and runs
@@ -19,13 +21,14 @@ import logging
 import os
 import socket
 import struct
-import tempfile
 import threading
 import time
 from concurrent.futures import Future
 from typing import Any, Callable, Iterable
 
 import msgpack
+
+from .discovery import Endpoint, resolve
 
 __all__ = [
     "BatchError",
@@ -36,7 +39,6 @@ __all__ = [
 ]
 
 PROTOCOL_VERSION = 1
-SOCKET_NAME = "open-crafter.sock"
 MAX_MESSAGE_BYTES = 64 << 20
 
 _LENGTH = struct.Struct("<I")
@@ -68,12 +70,26 @@ class ConnectionClosed(ConnectionError):
 
 
 def default_socket_path() -> str:
-    """``$OPENCRAFTER_SOCKET``, else ``$XDG_RUNTIME_DIR/open-crafter.sock``, else the temp dir."""
-    configured = os.environ.get("OPENCRAFTER_SOCKET")
-    if configured:
-        return configured
-    runtime_dir = os.environ.get("XDG_RUNTIME_DIR") or tempfile.gettempdir()
-    return os.path.join(runtime_dir, SOCKET_NAME)
+    """Deprecated: the endpoint ``Client()`` would connect to, as a string."""
+    return str(resolve()[0])
+
+
+def _connect(target: Endpoint, timeout: float) -> socket.socket:
+    if target.kind == "tcp":
+        sock = socket.create_connection((target.host, target.port), timeout=timeout)
+        sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+    else:
+        if not hasattr(socket, "AF_UNIX"):
+            raise ConnectionError(f"this Python has no Unix sockets; use a tcp: endpoint, not {target}")
+        sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        sock.settimeout(timeout)
+        try:
+            sock.connect(target.path)
+        except OSError:
+            sock.close()
+            raise
+    sock.settimeout(None)
+    return sock
 
 
 def _encode_extra(value: Any) -> Any:
@@ -165,16 +181,21 @@ class _Waiter:
 class Client:
     """Connection to the game. Thread-safe for sending; see the module docstring for reading."""
 
-    def __init__(self, path: str | None = None, *, background: bool = True,
+    def __init__(self, endpoint: str | None = None, *, token: str | None = None, background: bool = True,
                  timeout: float | None = 10.0, connect_timeout: float = 5.0):
-        self.path = path or default_socket_path()
+        """``endpoint``: ``unix:<path>``, ``tcp:<host>:<port>`` or a socket path; None = discover.
+
+        ``token`` is only used for TCP (default: ``OPENCRAFTER_TOKEN`` or the discovery file).
+        """
+        target, token = resolve(endpoint, token)
+        self.endpoint = str(target)
+        self.path = target.path
         self.timeout = timeout
         self.hello: dict = {}
         self._background = background
-        self._sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        self._sock.settimeout(connect_timeout)
-        self._sock.connect(self.path)
-        self._sock.settimeout(None)
+        self._sock = _connect(target, connect_timeout)
+        if target.kind == "tcp":
+            self._authenticate(token)
         self._inbox = _Inbox(self._sock)
         self._send_lock = threading.Lock()
         self._read_lock = threading.Lock()
@@ -338,6 +359,14 @@ class Client:
 
     # ------------------------------------------------------------------ internals
 
+    def _authenticate(self, token: str | None) -> None:
+        """TCP connections must send the token first; the game answers with ``hello`` or closes."""
+        if not token:
+            self._sock.close()
+            raise ConnectionError("a TCP endpoint needs a token: pass token=... or set OPENCRAFTER_TOKEN "
+                                  "(in game: /opencrafter transport token copy)")
+        self._sock.sendall(_frame({"op": "auth", "args": {"token": token}}))
+
     def _start_reading(self, connect_timeout: float) -> None:
         if self._background:
             threading.Thread(target=self._read_loop, name="opencrafter-reader", daemon=True).start()
@@ -346,7 +375,8 @@ class Client:
             ready = self._pump_until(self._hello_ready.is_set, connect_timeout)
         if not ready or self._closed:
             self._shutdown(None)
-            raise ConnectionClosed("no hello from the game")
+            hint = " (rejected token?)" if self.endpoint.startswith("tcp:") else ""
+            raise ConnectionClosed("no hello from the game" + hint)
         if self.hello.get("protocol") != PROTOCOL_VERSION:
             _log.warning("game speaks protocol %s, client %s", self.hello.get("protocol"), PROTOCOL_VERSION)
 

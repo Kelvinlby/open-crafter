@@ -32,3 +32,46 @@ jobs:
           name: open-crafter-${{ steps.vars.outputs.sha_short }}
           path: build/libs/
           retention-days: 7
+
+  # The transport (sockets, TCP auth, discovery files, shared memory) and the Python client
+  # differ per OS: run their tests, including Python against a live Java server, everywhere.
+  transport:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: checkout repository
+        uses: actions/checkout@v7
+      - name: setup jdk
+        uses: actions/setup-java@v6
+        with:
+          java-version: '25'
+          distribution: 'microsoft'
+      - name: setup gradle
+        uses: gradle/actions/setup-gradle@v6
+      - name: setup python
+        id: python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: install the python client
+        run: '"${{ steps.python.outputs.python-path }}" -m pip install ./python'
+      - name: make gradle wrapper executable
+        run: chmod +x ./gradlew
+      - name: test
+        env:
+          OPENCRAFTER_PYTHON: ${{ steps.python.outputs.python-path }}
+          OPENCRAFTER_REQUIRE_PYTHON: '1'
+        run: ./gradlew test --tests 'mod.kelvinlby.opencrafter.transport.*'
+      - name: upload test reports
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: transport-tests-${{ matrix.os }}
+          path: build/reports/tests/
+          retention-days: 7

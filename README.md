@@ -4,7 +4,7 @@ A Fabric mod for Minecraft 26.3 that turns the player into an embodied AI agent.
 An external **backend** (your model / inference engine) reads **sensors** and drives
 **executors** through a low-latency local interface:
 
-- **Control channel**: Unix domain socket, MessagePack messages (requests, fire-and-forget, batches, events).
+- **Control channel**: Unix domain socket (loopback TCP with a token on Windows), MessagePack messages (requests, fire-and-forget, batches, events).
 - **Frame channel**: shared-memory ring (`/dev/shm/open-crafter-<pid>`), zero-copy numpy views.
 
 Works on both OpenGL and Vulkan backends. The game's main thread never blocks on the backend.
@@ -32,7 +32,7 @@ pip install ./python
 ```python
 from opencrafter import Client
 
-with Client() as c:                      # connects to $XDG_RUNTIME_DIR/open-crafter.sock
+with Client() as c:                      # finds the running game by itself
     c.vision.configure(streams=["rgb", "flow", "flow_occluded"], rate_mode="tick")
     frames = c.frames()
     while True:
@@ -41,6 +41,13 @@ with Client() as c:                      # connects to $XDG_RUNTIME_DIR/open-cra
         c.input.hold(["forward", "sprint"])   # stream every step; released if not re-asserted
         c.input.rotate(yaw=2.0)
 ```
+
+`Client()` pairs with the game automatically on Linux (also Flatpak launchers such as Prism
+from Flathub), macOS and Windows: the game writes a small discovery file that the client looks
+for. `python -m opencrafter` lists running games. To configure it by hand, use
+`/opencrafter transport` in game, or `Client("unix:/path.sock")`, `Client("tcp:127.0.0.1:port",
+token=...)`, `OPENCRAFTER_ENDPOINT` / `OPENCRAFTER_TOKEN` / `OPENCRAFTER_INSTANCE` in Python
+([details](docs/PROTOCOL.md#11-finding-the-game-discovery)).
 
 Configure the push rate in game too: `/opencrafter vision rate tick|fps|hz <n>` (persisted in
 `config/open-crafter.json`).

@@ -6,8 +6,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.net.StandardProtocolFamily;
-import java.net.UnixDomainSocketAddress;
+import java.net.StandardSocketOptions;
 import java.nio.channels.ClosedChannelException;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
@@ -19,11 +21,15 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 
-/** Unix-domain-socket server accepting any number of concurrent backend connections. */
+/**
+ * Control-channel server (Unix domain socket, or TCP on loopback) accepting any number of
+ * concurrent backend connections. TCP connections must authenticate with a token first.
+ */
 public final class SocketServer implements AutoCloseable {
 	private static final Logger LOGGER = LoggerFactory.getLogger("open-crafter/transport");
 
-	private final Path path;
+	private final Endpoint endpoint;
+	private final String token;
 	private final ServerSocketChannel server;
 	private final Dispatcher dispatcher;
 	private final Supplier<byte[]> hello;
@@ -33,8 +39,9 @@ public final class SocketServer implements AutoCloseable {
 	private final AtomicLong nextId = new AtomicLong();
 	private volatile boolean closed;
 
-	private SocketServer(Path path, ServerSocketChannel server, Dispatcher dispatcher, Supplier<byte[]> hello, Runnable onLastDisconnect) {
-		this.path = path;
+	private SocketServer(Endpoint endpoint, String token, ServerSocketChannel server, Dispatcher dispatcher, Supplier<byte[]> hello, Runnable onLastDisconnect) {
+		this.endpoint = endpoint;
+		this.token = token;
 		this.server = server;
 		this.dispatcher = dispatcher;
 		this.hello = hello;
@@ -42,27 +49,47 @@ public final class SocketServer implements AutoCloseable {
 	}
 
 	/**
-	 * Binds {@code path} (replacing a stale socket file) and starts accepting.
+	 * Binds the Unix socket {@code path} (replacing a stale socket file) and starts accepting.
 	 * {@code hello} is invoked per connection and sent as its first message;
 	 * {@code onLastDisconnect} runs whenever the connection count drops to zero.
 	 */
-	public static SocketServer open(Path path, Dispatcher dispatcher, Supplier<byte[]> hello, Runnable onLastDisconnect) throws IOException {
+	public static SocketServer openUnix(Path path, Dispatcher dispatcher, Supplier<byte[]> hello, Runnable onLastDisconnect) throws IOException {
 		PrivateFiles.prepareFresh(path);
+		Endpoint.Unix endpoint = new Endpoint.Unix(path);
 		ServerSocketChannel channel = ServerSocketChannel.open(StandardProtocolFamily.UNIX);
 		try {
-			channel.bind(UnixDomainSocketAddress.of(path));
+			channel.bind(endpoint.address());
 			PrivateFiles.restrictToOwner(path);
 		} catch (IOException | RuntimeException e) {
 			channel.close();
 			throw e;
 		}
-		SocketServer server = new SocketServer(path, channel, dispatcher, hello, onLastDisconnect);
+		return start(new SocketServer(endpoint, null, channel, dispatcher, hello, onLastDisconnect));
+	}
+
+	/**
+	 * Binds loopback {@code port} (0 = any free port) and starts accepting. Every connection must
+	 * send {@code {"op": "auth", "args": {"token": token}}} first; it gets {@code hello} after that.
+	 */
+	public static SocketServer openTcp(int port, String token, Dispatcher dispatcher, Supplier<byte[]> hello, Runnable onLastDisconnect) throws IOException {
+		ServerSocketChannel channel = ServerSocketChannel.open(StandardProtocolFamily.INET);
+		try {
+			channel.bind(new InetSocketAddress(InetAddress.getLoopbackAddress(), port));
+		} catch (IOException | RuntimeException e) {
+			channel.close();
+			throw e;
+		}
+		Endpoint.Tcp endpoint = new Endpoint.Tcp((InetSocketAddress) channel.getLocalAddress());
+		return start(new SocketServer(endpoint, token, channel, dispatcher, hello, onLastDisconnect));
+	}
+
+	private static SocketServer start(SocketServer server) {
 		Thread.ofPlatform().daemon().name("open-crafter-accept").start(server::acceptLoop);
 		return server;
 	}
 
-	public Path path() {
-		return path;
+	public Endpoint endpoint() {
+		return endpoint;
 	}
 
 	public int connectionCount() {
@@ -106,11 +133,12 @@ public final class SocketServer implements AutoCloseable {
 	}
 
 	private void register(SocketChannel channel) {
+		setNoDelay(channel);
 		Connection connection = new Connection(nextId.incrementAndGet(), channel, dispatcher, this::unregister);
 		connections.add(connection);
 		connectionCount.incrementAndGet();
 		try {
-			connection.start(hello.get());
+			connection.start(hello, token);
 		} catch (RuntimeException e) {
 			LOGGER.error("Could not start backend connection", e);
 			connection.close();
@@ -142,7 +170,21 @@ public final class SocketServer implements AutoCloseable {
 		}
 	}
 
+	/** Requests and replies are small: send them right away instead of coalescing. */
+	private void setNoDelay(SocketChannel channel) {
+		if (endpoint instanceof Endpoint.Tcp) {
+			try {
+				channel.setOption(StandardSocketOptions.TCP_NODELAY, true);
+			} catch (IOException e) {
+				LOGGER.debug("Could not disable Nagle's algorithm", e);
+			}
+		}
+	}
+
 	private void deleteSocketFile() {
+		if (!(endpoint instanceof Endpoint.Unix(Path path))) {
+			return;
+		}
 		try {
 			Files.deleteIfExists(path);
 		} catch (IOException e) {

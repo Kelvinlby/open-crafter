@@ -45,10 +45,20 @@ Op names are `<area>.<verb>`, e.g. `input.rotate`, `vision.configure`.
 
 ## Backend protocol
 
-### Control channel: Unix domain socket
+### Pairing
 
-- Path: `transport.socketPath` in config, default `$XDG_RUNTIME_DIR/open-crafter.sock`
-  (fallback `java.io.tmpdir`). On Windows, Java AF_UNIX sockets work the same way.
+Each game writes a discovery file into a per-user directory that the backend also searches
+(`$XDG_RUNTIME_DIR/open-crafter`; inside a Flatpak `$XDG_RUNTIME_DIR/app/<id>/open-crafter`,
+the folder the sandbox shares with the host; `<temp dir>/open-crafter` on macOS and Windows).
+It names the endpoint, the TCP token if any, and the frame ring. `Client()` needs no
+arguments on Linux (native or Flatpak launchers), macOS and Windows. Manual overrides: the
+`/opencrafter transport` command in game, `Client("<endpoint>")` or `OPENCRAFTER_*`
+environment variables in Python. Details in `docs/PROTOCOL.md` §1.1–1.3.
+
+### Control channel: Unix domain socket or loopback TCP
+
+- Unix socket by default; TCP on `127.0.0.1` on Windows (CPython has no `AF_UNIX` there), with
+  a token as the first message.
 - Framing: `u32 little-endian length` + one MessagePack map.
 - Request: `{"id": int, "op": str, "args": map}` → response
   `{"id": int, "ok": true, "result": any}` or `{"id": int, "ok": false, "error": str}`.

@@ -2,7 +2,9 @@
 
 Run by the JUnit test ``PythonClientTest`` (which hosts the ops used here):
 
-    python tests/e2e_against_java.py <socket-path>
+    python tests/e2e_against_java.py [endpoint]
+
+Without an endpoint the client finds the game through discovery (``OPENCRAFTER_DISCOVERY_DIR``).
 
 Exits non-zero with a traceback on the first failed check.
 """
@@ -14,7 +16,7 @@ import time
 
 import numpy as np
 
-from opencrafter import BatchError, Client, RemoteError
+from opencrafter import BatchError, Client, RemoteError, discover
 
 EXPECTED_OPS = {"echo", "main.thread", "boom", "test.frame", "test.event", "test.counter"}
 
@@ -124,8 +126,17 @@ def check_frames(client: Client) -> None:
     check_frame(client, 16, 8, 4)      # smaller frames reuse the grown slots
 
 
-def run(socket_path: str, background: bool) -> None:
-    with Client(socket_path, background=background, timeout=5) as client:
+def check_discovery(endpoint: str | None) -> None:
+    games = discover()
+    if endpoint is None:
+        assert len(games) == 1, games
+        with Client(background=True, timeout=5) as client:
+            assert client.endpoint == games[0].endpoint, (client.endpoint, games)
+            assert client.shm_path == games[0].shm, (client.shm_path, games)
+
+
+def run(endpoint: str | None, background: bool) -> None:
+    with Client(endpoint, background=background, timeout=5) as client:
         check_requests(client)
         check_batches(client)
         check_fire_and_forget_order(client)
@@ -137,9 +148,10 @@ def run(socket_path: str, background: bool) -> None:
 
 
 def main() -> int:
-    socket_path = sys.argv[1]
+    endpoint = sys.argv[1] if len(sys.argv) > 1 else None
+    check_discovery(endpoint)
     for background in (True, False):
-        run(socket_path, background)
+        run(endpoint, background)
         print(f"background={background}: OK")
     return 0
 

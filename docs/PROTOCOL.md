@@ -2,7 +2,7 @@
 
 The game exposes two channels to backend processes:
 
-1. a **control socket** (Unix domain socket) for requests, replies and events, and
+1. a **control socket** (Unix domain socket, or TCP on loopback) for requests, replies and events, and
 2. a **frame ring** (memory-mapped file) carrying image-shaped sensor data.
 
 Both are owned by `mod.kelvinlby.opencrafter.transport`. The reference client is the Python
@@ -14,19 +14,80 @@ All multi-byte integers in framing and in the frame ring are **little-endian**. 
 
 ## 1. Control socket
 
-### 1.1 Location
+### 1.1 Finding the game (discovery)
 
-`transport.socketPath` from `config/open-crafter.json`. If empty:
+Every running game writes a **discovery file** `<instance>.json` into a per-user directory:
 
-1. `$XDG_RUNTIME_DIR/open-crafter.sock`, else
-2. `<java.io.tmpdir>/open-crafter.sock` (`/tmp` on Linux and macOS).
+| Platform | Discovery directory |
+|---|---|
+| Linux | `$XDG_RUNTIME_DIR/open-crafter` |
+| Linux, game inside a Flatpak (e.g. Prism Launcher from Flathub) | `$XDG_RUNTIME_DIR/app/<flatpak id>/open-crafter`: the one runtime folder a sandbox shares with the host, at the same path on both sides |
+| macOS, Windows, Linux without `XDG_RUNTIME_DIR` | `<temp dir>/open-crafter`: `java.io.tmpdir`, i.e. the per-user `$TMPDIR` / `%TEMP%` |
 
-The Python client additionally honours `$OPENCRAFTER_SOCKET`. The game deletes a stale
-socket file when it starts and removes the file when it stops. The file is created with
-mode `0600` where POSIX permissions exist. Any number of backends may connect at once;
-each connection is independent.
+The directory is mode `0700`, the file `0600` (where POSIX permissions exist).
+`<instance>` is `<pid>-<6 hex digits>`, unique even across Flatpak sandboxes, which have
+their own pid namespace. Content:
 
-### 1.2 Framing
+```json
+{
+  "format": 1, "protocol": 1,
+  "instance": "12345-a1b2c3", "pid": 12345,
+  "endpoint": "unix:/run/user/1000/open-crafter/12345-a1b2c3.sock",
+  "token": null,
+  "shm": "/dev/shm/open-crafter-12345-a1b2c3",
+  "started_ms": 1764000000000,
+  "game_dir": "/home/me/.minecraft",
+  "flatpak": null
+}
+```
+
+`endpoint` is `unix:<path>` or `tcp:<host>:<port>`; `token` is set only for TCP. While the
+game runs it holds an exclusive lock (`fcntl` / `LockFileEx`) on `<instance>.lock` next to the
+file. An entry whose lock file is missing or can be locked belongs to a game that crashed:
+ignore it (games delete such entries when they start). With several live games, the
+reference client picks the newest `started_ms` unless told otherwise.
+
+### 1.2 Endpoints
+
+| `transport.listen` | Endpoint |
+|---|---|
+| `auto` (default) | TCP on Windows (CPython has no Unix sockets there), a Unix socket elsewhere; falls back to TCP if the socket cannot be created |
+| `unix` | `transport.socketPath`, default `<discovery dir>/<instance>.sock` |
+| `tcp` | `127.0.0.1:<transport.tcpPort>`, default port 0 = any free port |
+
+The game deletes a stale socket file when it starts and removes the file when it stops. Any
+number of backends may connect at once; each connection is independent. TCP connections set
+`TCP_NODELAY`.
+
+**TCP authentication.** Loopback TCP is reachable by every local user, so the first message
+on a TCP connection must be `{"op": "auth", "args": {"token": "<token>"}}` (no `id`). The
+token comes from the discovery file (`transport.token`, default: a new random one per
+launch). On a match the game sends `hello` and the connection behaves as below; on anything
+else it closes the connection without a reply. Unix sockets need no token: the socket file is
+owner-only.
+
+### 1.3 Manual configuration
+
+In game (`/opencrafter transport ...`, persisted in `config/open-crafter.json`, applied at once;
+connected backends are disconnected):
+
+| Command | Effect |
+|---|---|
+| `status` | endpoint, discovery file, frame ring, connections, settings |
+| `listen auto\|unix\|tcp` | endpoint kind |
+| `socket <path>` / `socket default` | Unix socket file |
+| `port <n>` / `port default` | TCP port (0 = any free port) |
+| `shm <path>` / `shm default` | frame ring file |
+| `token set <value>` / `token random` / `token copy` | fixed or per-launch token; `copy` puts it on the clipboard (it is never printed, chat is part of the vision stream) |
+| `restart` | reopen everything |
+
+Backend side (reference client): `Client("unix:/path")` / `Client("tcp:127.0.0.1:25599",
+token=...)`, or the environment variables `OPENCRAFTER_ENDPOINT` (`OPENCRAFTER_SOCKET`, a
+socket path, also works), `OPENCRAFTER_TOKEN`, `OPENCRAFTER_INSTANCE` (choose among several
+games by instance, pid or part of the game directory) and `OPENCRAFTER_DISCOVERY_DIR` (extra
+directories to search first). `python -m opencrafter` lists the games it finds.
+
+### 1.4 Framing
 
 Each message in either direction is:
 
@@ -39,9 +100,9 @@ Each message in either direction is:
 `body` is exactly one MessagePack value, and it must be a **map**. The maximum body length is
 64 MiB (67 108 864 bytes). If a client sends a larger length, the game closes the
 connection. If a body does not decode, or is not a map, the game sends an `error` event
-(§1.7) and keeps the connection open.
+(§1.9) and keeps the connection open.
 
-### 1.3 MessagePack subset
+### 1.5 MessagePack subset
 
 The game decodes nil, bool, every int width (positive/negative fixint, uint8–64,
 int8–64), float32/64, str (fixstr, str8/16/32), bin (8/16/32), array (fixarray, 16, 32) and
@@ -68,7 +129,7 @@ float64. `byte[]` and `ByteBuffer` become bin. `Collection`, `Object[]` and prim
 become arrays. An enum becomes its name as a string. Map keys are encoded with
 `String.valueOf`.
 
-### 1.4 Requests and replies
+### 1.6 Requests and replies
 
 Request (client → game):
 
@@ -105,7 +166,7 @@ commands such as key holds and rotation.
 reply is sent when the future completes, so replies can arrive in a different order than
 the requests. Match replies by `id`.
 
-### 1.5 Threading and ordering
+### 1.7 Threading and ordering
 
 Each op is registered with a thread affinity:
 
@@ -120,7 +181,7 @@ order they were sent**, and this holds for fire-and-forget requests too. An `ANY
 arrives after a queued `MAIN` op may finish before it. Different connections have no
 ordering relative to each other.
 
-### 1.6 Batch
+### 1.8 Batch
 
 ```
 {"id": 1, "op": "batch", "args": {"calls": [{"op": "a.x", "args": {...}}, {"op": "b.y"}, ...]}}
@@ -139,7 +200,7 @@ ordering relative to each other.
 - Batches cannot be nested (`"Unknown op: batch"` inside a batch).
 - Without `id`, the batch is fire-and-forget.
 
-### 1.7 Events (game → client)
+### 1.9 Events (game → client)
 
 ```
 {"event": <str>, "data": <any, usually a map>}
@@ -170,11 +231,12 @@ and writer thread. The policy is:
 
 ### 2.1 Location and lifecycle
 
-The path is announced as `hello.data.shm`. The default is `/dev/shm/open-crafter-<pid>` when
-`/dev/shm` exists, else `<java.io.tmpdir>/open-crafter-<pid>`. `transport.sharedMemoryPath`
-overrides it. The file has mode `0600`. It is recreated on start and deleted on shutdown.
-At start the game also deletes default-named rings left behind by processes that no longer
-exist. Clients map the whole file **read-only**.
+The path is announced as `hello.data.shm` (and in the discovery file). The default is
+`/dev/shm/open-crafter-<instance>` on Linux outside a Flatpak, else `<discovery
+dir>/<instance>.ring` (a Flatpak's `/dev/shm` is private to the sandbox; the discovery directory
+is shared and, under `$XDG_RUNTIME_DIR`, also in RAM). `transport.sharedMemoryPath` overrides it.
+The file has mode `0600`. It is recreated on start and deleted on shutdown. At start the game
+also deletes default-named rings left behind by processes that no longer exist. Clients map the whole file **read-only**.
 
 The file only ever grows; it never shrinks while the game runs. A mapping you made earlier
 therefore stays valid for its own length.

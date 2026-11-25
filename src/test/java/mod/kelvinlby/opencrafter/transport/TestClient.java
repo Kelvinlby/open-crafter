@@ -1,15 +1,14 @@
 package mod.kelvinlby.opencrafter.transport;
 
 import mod.kelvinlby.opencrafter.transport.msgpack.MsgPackReader;
+import mod.kelvinlby.opencrafter.transport.server.Endpoint;
 import mod.kelvinlby.opencrafter.transport.wire.MessageInput;
 import mod.kelvinlby.opencrafter.transport.wire.WireFormat;
 
 import java.io.IOException;
 import java.net.StandardProtocolFamily;
-import java.net.UnixDomainSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
-import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -19,10 +18,16 @@ final class TestClient implements AutoCloseable {
 	private final MessageInput input;
 	private long nextId = 1;
 
-	TestClient(Path socket) throws IOException {
-		channel = SocketChannel.open(StandardProtocolFamily.UNIX);
-		channel.connect(UnixDomainSocketAddress.of(socket));
+	TestClient(Endpoint endpoint) throws IOException {
+		channel = SocketChannel.open(endpoint instanceof Endpoint.Unix ? StandardProtocolFamily.UNIX : StandardProtocolFamily.INET);
+		channel.connect(endpoint.address());
 		input = new MessageInput(channel);
+	}
+
+	/** Connects to a TCP endpoint and sends the auth message first. */
+	TestClient(Endpoint endpoint, String token) throws IOException {
+		this(endpoint);
+		send("auth", Map.of("token", token), false);
 	}
 
 	void sendRaw(byte[] frame) throws IOException {

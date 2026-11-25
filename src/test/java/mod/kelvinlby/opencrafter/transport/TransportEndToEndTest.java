@@ -7,6 +7,7 @@ import mod.kelvinlby.opencrafter.api.frame.FrameSlot;
 import mod.kelvinlby.opencrafter.api.frame.StreamSpec;
 import mod.kelvinlby.opencrafter.api.handler.HandlerRegistry;
 import mod.kelvinlby.opencrafter.core.config.TransportConfig;
+import mod.kelvinlby.opencrafter.transport.server.Endpoint;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -38,9 +39,10 @@ class TransportEndToEndTest {
 	@BeforeEach
 	void start() {
 		config = new TransportConfig();
+		config.listen = TransportConfig.Listen.UNIX;
 		config.socketPath = dir.resolve("oc.sock").toString();
 		config.sharedMemoryPath = dir.resolve("oc-ring").toString();
-		transport = TransportModule.start(config, handlers, new BackendLifecycle(), mainThread);
+		transport = TransportModule.start(config, handlers, new BackendLifecycle(), mainThread, dir.resolve("discovery"));
 		handlers.register("echo", ThreadAffinity.ANY, args -> args.raw());
 		handlers.register("main.thread", ThreadAffinity.MAIN, args -> Thread.currentThread().getName());
 		handlers.register("boom", ThreadAffinity.MAIN, args -> {
@@ -64,7 +66,7 @@ class TransportEndToEndTest {
 
 	@Test
 	void helloAnnouncesProtocolShmAndSortedOps() throws IOException {
-		try (TestClient client = new TestClient(transport.socketPath())) {
+		try (TestClient client = new TestClient(transport.endpoint())) {
 			Map<String, Object> hello = client.read();
 			assertEquals("hello", hello.get("event"));
 			@SuppressWarnings("unchecked")
@@ -78,7 +80,7 @@ class TransportEndToEndTest {
 
 	@Test
 	void requestsRunOnTheRightThreadAndReply() throws IOException {
-		try (TestClient client = new TestClient(transport.socketPath())) {
+		try (TestClient client = new TestClient(transport.endpoint())) {
 			assertEquals(Map.of("a", List.of(1L, "b")), client.call("echo", Map.of("a", List.of(1, "b"))).get("result"));
 			assertEquals("fake-main", client.call("main.thread", Map.of()).get("result"));
 			Map<String, Object> failure = client.call("boom", Map.of());
@@ -91,7 +93,7 @@ class TransportEndToEndTest {
 
 	@Test
 	void fireAndForgetAndBatch() throws IOException {
-		try (TestClient client = new TestClient(transport.socketPath())) {
+		try (TestClient client = new TestClient(transport.endpoint())) {
 			client.send("boom", Map.of(), false);
 			client.send("echo", Map.of(), false);
 			List<Object> calls = List.of(Map.of("op", "echo", "args", Map.of("n", 1)), Map.of("op", "main.thread"));
@@ -103,7 +105,7 @@ class TransportEndToEndTest {
 
 	@Test
 	void malformedMessageYieldsErrorEventAndConnectionSurvives() throws IOException {
-		try (TestClient client = new TestClient(transport.socketPath())) {
+		try (TestClient client = new TestClient(transport.endpoint())) {
 			client.sendRaw(new byte[] {1, 0, 0, 0, (byte) 0xc1});
 			client.sendRaw(mod.kelvinlby.opencrafter.transport.wire.WireFormat.message(List.of(1)));
 			assertNotNull(client.event("error").get("data"));
@@ -114,7 +116,7 @@ class TransportEndToEndTest {
 
 	@Test
 	void eventsReachEveryConnection() throws Exception {
-		try (TestClient a = new TestClient(transport.socketPath()); TestClient b = new TestClient(transport.socketPath())) {
+		try (TestClient a = new TestClient(transport.endpoint()); TestClient b = new TestClient(transport.endpoint())) {
 			// hello is sent after a connection is registered, so both now receive broadcasts.
 			a.read();
 			b.read();
@@ -126,7 +128,7 @@ class TransportEndToEndTest {
 
 	@Test
 	void commitAnnouncesFrameEvent() throws Exception {
-		try (TestClient client = new TestClient(transport.socketPath())) {
+		try (TestClient client = new TestClient(transport.endpoint())) {
 			client.read();
 			await(() -> transport.frames().hasReaders());
 			FrameSlot slot = transport.frames().acquire(List.of(new StreamSpec("rgb", DType.UINT8, 4, 4, 4)));
@@ -145,7 +147,7 @@ class TransportEndToEndTest {
 			for (int c = 0; c < 4; c++) {
 				int client = c;
 				runs.add(pool.submit(() -> {
-					try (TestClient connection = new TestClient(transport.socketPath())) {
+					try (TestClient connection = new TestClient(transport.endpoint())) {
 						for (int i = 0; i < 200; i++) {
 							String op = i % 2 == 0 ? "echo" : "main.thread";
 							Map<String, Object> reply = connection.call(op, Map.of("c", client, "i", i));
@@ -166,17 +168,20 @@ class TransportEndToEndTest {
 
 	@Test
 	void disconnectClearsReadersAndCloseDeletesFiles() throws Exception {
-		TestClient client = new TestClient(transport.socketPath());
+		TestClient client = new TestClient(transport.endpoint());
 		client.read();
 		await(() -> transport.frames().hasReaders());
 		client.close();
 		await(() -> !transport.frames().hasReaders());
-		Path socket = transport.socketPath();
+		Path socket = ((Endpoint.Unix) transport.endpoint()).path();
 		Path ring = transport.ringPath();
 		assertTrue(Files.exists(socket));
 		assertTrue(Files.exists(ring));
+		Path discovery = transport.discoveryFile();
+		assertTrue(Files.exists(discovery));
 		transport.close();
 		assertFalse(Files.exists(socket));
+		assertFalse(Files.exists(discovery));
 		assertFalse(Files.exists(ring));
 	}
 
@@ -184,8 +189,8 @@ class TransportEndToEndTest {
 	void staleSocketFileIsReplaced() throws Exception {
 		transport.close();
 		Files.writeString(Path.of(config.socketPath), "stale");
-		transport = TransportModule.start(config, handlers, new BackendLifecycle(), mainThread);
-		try (TestClient client = new TestClient(transport.socketPath())) {
+		transport = TransportModule.start(config, handlers, new BackendLifecycle(), mainThread, dir.resolve("discovery"));
+		try (TestClient client = new TestClient(transport.endpoint())) {
 			assertEquals("hello", client.read().get("event"));
 		}
 	}

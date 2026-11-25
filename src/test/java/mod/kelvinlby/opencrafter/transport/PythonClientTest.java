@@ -9,7 +9,6 @@ import mod.kelvinlby.opencrafter.api.frame.StreamSpec;
 import mod.kelvinlby.opencrafter.api.handler.HandlerRegistry;
 import mod.kelvinlby.opencrafter.core.config.TransportConfig;
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -18,6 +17,7 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
@@ -32,7 +32,8 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
 /**
  * Runs {@code python/tests/e2e_against_java.py} against a live transport. Skipped unless a
  * Python with msgpack and numpy is found: {@code -Dopencrafter.python=...},
- * {@code $OPENCRAFTER_PYTHON}, or {@code python/.venv/bin/python}.
+ * {@code $OPENCRAFTER_PYTHON}, or {@code python/.venv}. CI sets {@code OPENCRAFTER_REQUIRE_PYTHON}
+ * so that a missing Python fails instead of skipping.
  */
 class PythonClientTest {
 	@TempDir
@@ -42,12 +43,8 @@ class PythonClientTest {
 	private final AtomicLong counter = new AtomicLong();
 	private TransportModule transport;
 
-	@BeforeEach
-	void start() {
-		TransportConfig config = new TransportConfig();
-		config.socketPath = dir.resolve("py.sock").toString();
-		config.sharedMemoryPath = dir.resolve("py-ring").toString();
-		transport = TransportModule.start(config, handlers, new BackendLifecycle(), mainThread);
+	private void start(TransportConfig config) {
+		transport = TransportModule.start(config, handlers, new BackendLifecycle(), mainThread, dir);
 		handlers.register("echo", ThreadAffinity.ANY, Args::raw);
 		handlers.register("main.thread", ThreadAffinity.MAIN, args -> Thread.currentThread().getName());
 		handlers.register("boom", ThreadAffinity.ANY, args -> {
@@ -63,20 +60,46 @@ class PythonClientTest {
 
 	@AfterEach
 	void stop() {
-		transport.close();
+		if (transport != null) {
+			transport.close();
+		}
 		mainThread.shutdownNow();
 	}
 
+	/** Platform defaults (TCP on Windows, Unix socket elsewhere); Python finds the game by discovery alone. */
 	@Test
-	void pythonClientPassesEndToEndChecks() throws Exception {
+	void pythonClientFindsTheGameByDiscovery() throws Exception {
+		start(new TransportConfig());
+		runPython(List.of(), Map.of("OPENCRAFTER_DISCOVERY_DIR", dir.toString()));
+	}
+
+	/** TCP everywhere, with the endpoint and token given explicitly (manual configuration). */
+	@Test
+	void pythonClientConnectsToAnExplicitTcpEndpoint() throws Exception {
+		TransportConfig config = new TransportConfig();
+		config.listen = TransportConfig.Listen.TCP;
+		start(config);
+		runPython(List.of(transport.endpoint().uri()), Map.of("OPENCRAFTER_TOKEN", transport.token(), "OPENCRAFTER_DISCOVERY_DIR", dir.resolve("empty").toString()));
+	}
+
+	private void runPython(List<String> args, Map<String, String> env) throws Exception {
 		Path projectDir = Path.of(System.getProperty("opencrafter.projectDir", ".")).toAbsolutePath();
 		Path python = findPython(projectDir);
-		assumeTrue(python != null && hasDependencies(python), "no Python with msgpack+numpy available");
+		boolean available = python != null && hasDependencies(python);
+		if (System.getenv("OPENCRAFTER_REQUIRE_PYTHON") != null) {
+			assertTrue(available, "OPENCRAFTER_REQUIRE_PYTHON is set but no Python with msgpack+numpy was found");
+		}
+		assumeTrue(available, "no Python with msgpack+numpy available");
 
-		ProcessBuilder builder = new ProcessBuilder(python.toString(), "tests/e2e_against_java.py", transport.socketPath().toString())
+		List<String> command = new ArrayList<>(List.of(python.toString(), "tests/e2e_against_java.py"));
+		command.addAll(args);
+		ProcessBuilder builder = new ProcessBuilder(command)
 			.directory(projectDir.resolve("python").toFile())
 			.redirectErrorStream(true);
 		builder.environment().put("PYTHONPATH", projectDir.resolve("python").toString());
+		builder.environment().remove("OPENCRAFTER_ENDPOINT");
+		builder.environment().remove("OPENCRAFTER_SOCKET");
+		builder.environment().putAll(env);
 		Process process = builder.start();
 		String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
 		assertTrue(process.waitFor(60, TimeUnit.SECONDS), "python timed out");
@@ -134,8 +157,13 @@ class PythonClientTest {
 		if (configured != null && !configured.isBlank()) {
 			return Path.of(configured);
 		}
-		Path venv = projectDir.resolve("python/.venv/bin/python");
-		return Files.isExecutable(venv) ? venv : null;
+		for (String candidate : List.of("python/.venv/bin/python", "python/.venv/Scripts/python.exe")) {
+			Path venv = projectDir.resolve(candidate);
+			if (Files.isExecutable(venv)) {
+				return venv;
+			}
+		}
+		return null;
 	}
 
 	private static boolean hasDependencies(Path python) throws IOException, InterruptedException {
