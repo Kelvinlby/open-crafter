@@ -57,21 +57,21 @@ public final class VisionPipelines {
 		fullscreen("vision_flow_static", false)
 			.withFragmentShader(OpenCrafter.id("core/vision_flow_static"))
 			.withBindGroupLayout(FLOW_UNIFORMS)
-			.withBindGroupLayout(samplers("PrevWorldDepth", "PrevHandDepth", "CurWorldDepth", "CurHandDepth", "CurHudMask"))
+			.withBindGroupLayout(samplers("PrevWorldDepth", "PrevHandDepth", "CurWorldDepth", "CurHandDepth"))
 			.withColorTargetState(target(FLOW_WORK_FORMAT))
 			.build()
 	);
 
 	public static final RenderPipeline FLOW_MOTION_WORLD = RenderPipelines.registerOptional(
 		motion("vision_flow_motion_world")
-			.withBindGroupLayout(samplers("PrevDepth", "CurWorldDepth", "CurHandDepth", "CurHudMask"))
+			.withBindGroupLayout(samplers("PrevDepth", "CurWorldDepth", "CurHandDepth"))
 			.build()
 	);
 
 	public static final RenderPipeline FLOW_MOTION_HAND = RenderPipelines.registerOptional(
 		motion("vision_flow_motion_hand")
 			.withShaderDefine("HAND")
-			.withBindGroupLayout(samplers("PrevDepth", "CurHandDepth", "CurHudMask"))
+			.withBindGroupLayout(samplers("PrevDepth", "CurHandDepth"))
 			.build()
 	);
 

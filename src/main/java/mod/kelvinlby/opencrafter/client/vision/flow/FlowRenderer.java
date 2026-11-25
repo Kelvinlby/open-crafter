@@ -176,7 +176,6 @@ public final class FlowRenderer implements FlowStage, AutoCloseable {
 		pass.setUniform(FlowUniforms.NAME, uniforms().buffer());
 		pass.setUniform("CurWorldDepth", current.worldDepth.view(), FullscreenPass.nearest());
 		pass.setUniform("CurHandDepth", current.handDepth.view(), FullscreenPass.nearest());
-		pass.setUniform("CurHudMask", current.hudMask.view(), FullscreenPass.nearest());
 	}
 
 	private void clearOutputs() {

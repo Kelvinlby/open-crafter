@@ -90,10 +90,14 @@ moving objects. When frame *k* is captured, own GPU passes compute flow from fra
    first-person hand are rasterised at their reference position (kept only where they
    match the reference depth, i.e. were visible); each fragment interpolates the triangle's
    current view-space position perspective-correctly and projects it.
-3. *Occlusion*: the surface point's current position must match the current depth (2×2
-   texel depth range ± (0.05 + 1 % of distance) blocks), not be under the current hand or
-   HUD, be on screen and in front of the camera. Objects that vanished or changed vertex
-   layout are occluded.
+3. *Occlusion*: the surface point's current position is sub-pixel, so near a depth edge
+   the texel it lands in may show the other surface. The point counts as visible when any
+   texel in the 3×3 neighbourhood of that texel holds the same surface (distance within
+   0.05 + 1 % of the distance, in blocks), or when it lies within the depth range of its 2×2
+   bilinear footprint (grazing angles). It must also not be under the current first-person
+   hand, and must be on screen and in front of the camera. Objects that vanished or changed
+   vertex layout are occluded. The HUD is an overlay, not scene geometry: points moving under
+   it are not flagged.
 4. *Resolve*: pixels covered by the reference frame's HUD get flow 0 and occluded 0; rows
    are flipped and y negated.
 
@@ -132,8 +136,12 @@ Approximations and known limits:
 - Translucent surfaces that write depth (stained glass, ice) are the visible surface; what
   is seen through them gets their flow.
 - The occlusion test has a tolerance of 0.05 + 1 % of the distance; occluders thinner than
-  that (rare in Minecraft) are missed, and leaf cutouts produce occasional single-pixel
-  occlusion flags at depth discontinuities.
+  that (rare in Minecraft) are missed. Because of the 3×3 neighbourhood, a disocclusion
+  band narrower than about one pixel next to a silhouette is not flagged. Under pure camera
+  rotation (no parallax) about 0.07 % of pixels in leafy scenes are still flagged: alpha-
+  tested leaves rasterise differently at different sub-pixel offsets (measured in the
+  `oc-e2e` world; before this test was widened it was 0.30 %, plus a line along the hotbar
+  and the crosshair).
 
 ## Shader mods (Iris)
 
