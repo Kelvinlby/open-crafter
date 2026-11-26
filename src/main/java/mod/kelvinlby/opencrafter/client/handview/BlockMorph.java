@@ -9,6 +9,7 @@ import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.renderer.item.ItemStackRenderState;
 import net.minecraft.client.resources.model.geometry.BakedQuad;
 import net.minecraft.core.BlockPos;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.shapes.VoxelShape;
@@ -20,11 +21,14 @@ import java.util.List;
 
 /**
  * Block placement: the held block item turns, moves and resizes until it is the placed block,
- * in place and in shape. Works for items drawn as block geometry; flat icons keep the reach.
+ * in place and in shape. Works for items drawn as block geometry; flat icons jab instead.
  */
 final class BlockMorph {
-	/** Where the held model ends up (its model space mapped into the placed block's cell), and its centre. */
-	record Target(BlockPos pos, Matrix4f modelToBlock, Vector3f centre) {
+	/**
+	 * Where the held model ends up (its model space mapped into the placed block's cell), its centre,
+	 * and the stack drawn meanwhile (as it was before the click, so the last block of a stack shows too).
+	 */
+	record Target(BlockPos pos, Matrix4f modelToBlock, Vector3f centre, ItemStack item) {
 	}
 
 	private BlockMorph() {
@@ -41,10 +45,10 @@ final class BlockMorph {
 		Vector3f centre = model.centre();
 		Matrix4f turn = CubeRotation.find(ModelFaces.faces(itemQuads), ModelFaces.faces(blockQuads));
 		if (turn != null) {
-			return new Target(placed.pos(), turn, centre);
+			return new Target(placed.pos(), turn, centre, placed.held());
 		}
 		Box added = Box.added(outline(placed.state(), level, placed.pos()), outline(placed.before(), level, placed.pos()));
-		return added.isEmpty() ? null : new Target(placed.pos(), model.fitInto(added), centre);
+		return added.isEmpty() ? null : new Target(placed.pos(), model.fitInto(added), centre, placed.held());
 	}
 
 	/**

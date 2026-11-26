@@ -10,12 +10,14 @@ import net.minecraft.client.renderer.item.ItemStackRenderState;
 import net.minecraft.client.renderer.entity.state.AvatarRenderState;
 import net.minecraft.client.renderer.state.level.FirstPersonHandsAndItemsRenderState;
 import net.minecraft.client.renderer.state.level.PlayerRenderState;
+import net.minecraft.core.BlockPos;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.HumanoidArm;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.PlayerSkin;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.component.SwingAnimation;
+import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.BlockHitResult;
 import org.jspecify.annotations.Nullable;
 
@@ -201,6 +203,16 @@ public final class HandViewHooks {
 
 	public static float offHeightStep(float step, float height) {
 		return skipsSwap() ? 1 - height : step;
+	}
+
+	/** The stack a hand draws: the placed block's while the hand morphs into it. */
+	public static ItemStack shownItem(InteractionHand hand, ItemStack shown) {
+		return active() == null ? shown : view.swings.shownItem(hand, shown);
+	}
+
+	/** The server set a block the hand is still morphing into: kept for when it arrives. */
+	public static boolean holdsBackBlock(BlockPos pos, BlockState state) {
+		return view != null && view.swings.heldBack.intercept(pos, state);
 	}
 
 	/** Smooth right clicks keep a stack that only changed its count (a bite, a throw) raised instead of re-equipping it. */

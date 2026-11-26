@@ -3,15 +3,20 @@ package mod.kelvinlby.opencrafter.client.handview;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.math.Axis;
 import mod.kelvinlby.opencrafter.core.config.handview.SwingConfig;
+import mod.kelvinlby.opencrafter.mixin.handview.HandItemsAccessor;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.client.renderer.item.ItemStackRenderState;
+import net.minecraft.core.BlockPos;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.HumanoidArm;
 import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.phys.Vec3;
+import net.minecraft.world.item.ItemStack;
 import org.jspecify.annotations.Nullable;
+
+import java.util.HashSet;
+import java.util.Set;
 
 /**
  * Plays the custom left and right click swings: it learns what caused each swing of the local
@@ -20,7 +25,7 @@ import org.jspecify.annotations.Nullable;
 final class SwingAnimator {
 	/** What a right click did. */
 	enum RightClick {
-		/** Placed a block: reach out to it. */
+		/** Placed a block: morph into it, or jab. */
 		PLACE,
 		/** Used an entity or block: shake while held. */
 		INTERACT,
@@ -31,6 +36,10 @@ final class SwingAnimator {
 	/** The shake axis leans this far off vertical, towards the outside of the hand. */
 	private static final double SHAKE_LEAN_RADIANS = Math.toRadians(20);
 
+	/** A morph reaches the block in this share of a swing. */
+	private static final double MORPH_SHARE = 0.5;
+
+	final HeldBackBlocks heldBack = new HeldBackBlocks();
 	private final HandAnimations[] hands = {new HandAnimations(), new HandAnimations()};
 	private long ticks;
 	private @Nullable PlacedBlock pendingPlacement;
@@ -44,10 +53,45 @@ final class SwingAnimator {
 			if (config == null) {
 				of(hand).playVanilla();
 			} else {
-				of(hand).update(ticks, attackHeld, useHeld, vanillaSwinging(minecraft.player, hand));
+				HandAnimations.MorphEvent event = of(hand).update(ticks, attackHeld, useHeld, vanillaSwinging(minecraft.player, hand));
+				onMorphEvent(minecraft.player, hand, event);
 			}
 		}
+		heldBack.revealAllBut(travellingBlocks());
 		pendingPlacement = null;
+	}
+
+	/** Once the hand has let go of a morphed block, the next item (or the bare hand) comes up from below. */
+	private static void onMorphEvent(@Nullable LocalPlayer player, InteractionHand hand, HandAnimations.MorphEvent event) {
+		if (event != HandAnimations.MorphEvent.SETTLED || player == null) {
+			return;
+		}
+		HandItemsAccessor items = (HandItemsAccessor) player.firstPersonHandsAndItems();
+		if (hand == InteractionHand.MAIN_HAND) {
+			items.openCrafter$setMainHandHeight(0);
+			items.openCrafter$setOldMainHandHeight(0);
+		} else {
+			items.openCrafter$setOffHandHeight(0);
+			items.openCrafter$setOldOffHandHeight(0);
+		}
+	}
+
+	/** Blocks a hand is still morphing into, which stay held back. */
+	private Set<BlockPos> travellingBlocks() {
+		Set<BlockPos> blocks = new HashSet<>();
+		for (HandAnimations hand : hands) {
+			BlockMorph.Target morph = hand.travellingMorph();
+			if (morph != null) {
+				blocks.add(morph.pos());
+			}
+		}
+		return blocks;
+	}
+
+	/** The stack {@code hand} draws: the placed one while it morphs into its block, else {@code shown}. */
+	ItemStack shownItem(InteractionHand hand, ItemStack shown) {
+		BlockMorph.Target morph = of(hand).drawnMorph();
+		return morph == null ? shown : morph.item();
 	}
 
 	void onLeftSwing(SwingConfig config, LocalPlayer player) {
@@ -82,8 +126,9 @@ final class SwingAnimator {
 		ClientLevel level = Minecraft.getInstance().level;
 		HumanoidArm arm = swungArm(player);
 		BlockMorph.Target morph = level == null ? null : BlockMorph.resolve(ModelFaces.heldModel(player, placed.held(), arm), placed, level);
-		if (morph != null) {
-			hand.playMorph(ticks, morph, swingTicks(player));
+		if (morph != null && level != null) {
+			hand.playMorph(ticks, morph, swingTicks(player) * MORPH_SHARE);
+			heldBack.holdBack(level, player, placed);
 		} else {
 			hand.playJab(ticks, swingTicks(player));
 		}
@@ -118,9 +163,9 @@ final class SwingAnimator {
 	/** The morph into a placed block; call last, right before the item is drawn. */
 	void applyMorph(PoseStack pose, InteractionHand hand, ItemStackRenderState item, HandFrame frame, float partialTicks) {
 		HandAnimations animations = of(hand);
-		BlockMorph.Target morph = animations.morph();
-		float weight = animations.outAndBack.weight(ticks + partialTicks);
-		if (animations.owner() == HandAnimations.Owner.MORPH && morph != null && weight > 0) {
+		BlockMorph.Target morph = animations.drawnMorph();
+		float weight = animations.travel.weight(ticks + partialTicks);
+		if (morph != null && weight > 0) {
 			BlockMorph.apply(pose, item, morph, frame, weight);
 		}
 	}
