@@ -6,6 +6,8 @@
 		"CameraAccessor",
 		"HandItemsMixin",
 		"HandRendererMixin",
+		"ItemStackRenderStateAccessor",
+		"LayerRenderStateAccessor",
 		"LivingEntitySwingMixin",
 		"LocalPlayerAccessor",
 		"MinecraftClickMixin"

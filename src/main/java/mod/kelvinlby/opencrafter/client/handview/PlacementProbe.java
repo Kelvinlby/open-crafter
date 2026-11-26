@@ -4,19 +4,24 @@ import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.BlockHitResult;
-import net.minecraft.world.phys.Vec3;
 import org.jspecify.annotations.Nullable;
 
 /** Tells, around one right click on a block, whether a block was placed and where. */
 final class PlacementProbe {
+	private final ItemStack heldStack;
+	private final Block held;
 	private final BlockPos clicked;
 	private final BlockPos adjacent;
 	private final BlockState clickedBefore;
 	private final BlockState adjacentBefore;
 
-	private PlacementProbe(ClientLevel level, BlockHitResult hit) {
+	private PlacementProbe(ClientLevel level, ItemStack heldStack, Block held, BlockHitResult hit) {
+		this.heldStack = heldStack.copy();
+		this.held = held;
 		this.clicked = hit.getBlockPos();
 		this.adjacent = clicked.relative(hit.getDirection());
 		this.clickedBefore = level.getBlockState(clicked);
@@ -25,20 +30,25 @@ final class PlacementProbe {
 
 	/** Null when the held item cannot place a block, so the click can only interact. */
 	static @Nullable PlacementProbe before(ClientLevel level, ItemStack held, BlockHitResult hit) {
-		return held.getItem() instanceof BlockItem ? new PlacementProbe(level, hit) : null;
+		return held.getItem() instanceof BlockItem item ? new PlacementProbe(level, held, item.getBlock(), hit) : null;
 	}
 
 	/**
-	 * The centre of the placed block, or null if nothing was placed. A block is placed next to the
-	 * clicked face, or replaces the clicked block (grass, snow); a clicked block that only changed
-	 * its state (a door opening) was interacted with.
+	 * The placed block, or null if nothing was placed. A block is placed next to the clicked face,
+	 * replaces the clicked block (grass, snow), or joins it (a slab made double); a clicked block of
+	 * another kind that only changed its state (a door opening) was interacted with.
 	 */
-	@Nullable Vec3 placedCentre(ClientLevel level) {
-		if (!level.getBlockState(adjacent).equals(adjacentBefore)) {
-			return Vec3.atCenterOf(adjacent);
+	@Nullable PlacedBlock placed(ClientLevel level) {
+		BlockState adjacentNow = level.getBlockState(adjacent);
+		if (!adjacentNow.equals(adjacentBefore)) {
+			return new PlacedBlock(adjacent, adjacentNow, adjacentBefore, heldStack);
 		}
-		if (!level.getBlockState(clicked).is(clickedBefore.getBlock())) {
-			return Vec3.atCenterOf(clicked);
+		BlockState clickedNow = level.getBlockState(clicked);
+		if (!clickedNow.is(clickedBefore.getBlock())) {
+			return new PlacedBlock(clicked, clickedNow, Blocks.AIR.defaultBlockState(), heldStack);
+		}
+		if (clickedNow.is(held) && !clickedNow.equals(clickedBefore)) {
+			return new PlacedBlock(clicked, clickedNow, clickedBefore, heldStack);
 		}
 		return null;
 	}

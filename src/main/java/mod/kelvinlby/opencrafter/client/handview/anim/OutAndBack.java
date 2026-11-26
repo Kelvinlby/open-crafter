@@ -1,15 +1,15 @@
 package mod.kelvinlby.opencrafter.client.handview.anim;
 
 /**
- * Block placement: the held item travels out to the placed block and back over one swing.
- * {@link #weight} is 0 at rest and 1 at the block, easing in and out at both ends.
+ * A one-shot motion out and back over one swing (block placement: the morph into the placed block,
+ * or a small jab). {@link #weight} is 0 at rest and 1 at the far end, easing in and out at both ends.
  */
-public final class ReachMotion {
+public final class OutAndBack {
 	private double start;
 	private double durationTicks;
 	private boolean active;
 
-	/** Starts a reach; one still under way continues from its current weight so nothing jumps. */
+	/** Starts the motion; one still under way continues from its current weight so nothing jumps. */
 	public void start(double now, double durationTicks) {
 		double current = weight(now);
 		this.durationTicks = Math.max(1, durationTicks);

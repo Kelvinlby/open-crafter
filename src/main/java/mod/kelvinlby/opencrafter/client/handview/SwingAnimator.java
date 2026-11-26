@@ -4,12 +4,13 @@ import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.math.Axis;
 import mod.kelvinlby.opencrafter.core.config.handview.SwingConfig;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.client.renderer.item.ItemStackRenderState;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.HumanoidArm;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.phys.Vec3;
-import org.joml.Vector3f;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -32,7 +33,7 @@ final class SwingAnimator {
 
 	private final HandAnimations[] hands = {new HandAnimations(), new HandAnimations()};
 	private long ticks;
-	private @Nullable Vec3 pendingPlacement;
+	private @Nullable PlacedBlock pendingPlacement;
 
 	/** Start of every client tick. */
 	void tick(Minecraft minecraft, @Nullable SwingConfig config) {
@@ -59,47 +60,68 @@ final class SwingAnimator {
 	}
 
 	/** After a right click on a block: where a block was placed, or null. */
-	void notePlacement(@Nullable Vec3 placedCentre) {
-		pendingPlacement = placedCentre;
+	void notePlacement(@Nullable PlacedBlock placed) {
+		pendingPlacement = placed;
 	}
 
 	void onRightSwing(SwingConfig config, LocalPlayer player, RightClick kind) {
 		HandAnimations hand = swungHand(player);
-		Vec3 placed = pendingPlacement;
+		PlacedBlock placed = pendingPlacement;
 		pendingPlacement = null;
 		if (config.rightClick != SwingConfig.RightClickAnimation.SMOOTH || kind == RightClick.USE) {
 			hand.playVanilla();
 		} else if (kind == RightClick.PLACE && placed != null) {
-			hand.playReach(ticks, placed, swingTicks(player));
+			playPlacement(hand, player, placed);
 		} else {
 			hand.playShake(ticks);
 		}
 	}
 
-	/** The swing progress {@code hand} shows: the stub's, none while shaking or reaching, else vanilla's. */
+	/** A placed block: a 3D block item turns into it, a flat item jabs. */
+	private void playPlacement(HandAnimations hand, LocalPlayer player, PlacedBlock placed) {
+		ClientLevel level = Minecraft.getInstance().level;
+		HumanoidArm arm = swungArm(player);
+		BlockMorph.Target morph = level == null ? null : BlockMorph.resolve(ModelFaces.heldModel(player, placed.held(), arm), placed, level);
+		if (morph != null) {
+			hand.playMorph(ticks, morph, swingTicks(player));
+		} else {
+			hand.playJab(ticks, swingTicks(player));
+		}
+	}
+
+	/** The swing progress {@code hand} shows: the stub's or the jab's, none while shaking or morphing, else vanilla's. */
 	float attack(InteractionHand hand, float vanilla, float partialTicks) {
 		HandAnimations animations = of(hand);
+		double now = ticks + partialTicks;
 		return switch (animations.owner()) {
 			case VANILLA -> vanilla;
-			case STUB -> animations.stub.progress(ticks + partialTicks);
-			case SHAKE, REACH -> 0;
+			case STUB -> animations.stub.progress(now);
+			case JAB -> HandAnimations.JAB_PROGRESS * animations.outAndBack.weight(now);
+			case SHAKE, MORPH -> 0;
 		};
 	}
 
-	/** True while the stub drives {@code hand}: it renders as a swing even after vanilla's swing ended. */
+	/** True while the stub or the jab drives {@code hand}: it renders as a swing even after vanilla's swing ended. */
 	boolean forcesSwing(InteractionHand hand) {
-		return of(hand).owner() == HandAnimations.Owner.STUB;
+		HandAnimations.Owner owner = of(hand).owner();
+		return owner == HandAnimations.Owner.STUB || owner == HandAnimations.Owner.JAB;
 	}
 
-	/** Moves the pose for a shake or a reach; call in camera space, before any other hand transform. */
+	/** Moves the pose for a shake; call before any other hand transform. */
 	void applyMotion(PoseStack pose, InteractionHand hand, HumanoidArm arm, float partialTicks) {
 		HandAnimations animations = of(hand);
-		double now = ticks + partialTicks;
-		switch (animations.owner()) {
-			case SHAKE -> applyShake(pose, animations, arm, now);
-			case REACH -> applyReach(pose, animations, arm, now);
-			default -> {
-			}
+		if (animations.owner() == HandAnimations.Owner.SHAKE) {
+			applyShake(pose, animations, arm, ticks + partialTicks);
+		}
+	}
+
+	/** The morph into a placed block; call last, right before the item is drawn. */
+	void applyMorph(PoseStack pose, InteractionHand hand, ItemStackRenderState item, HandFrame frame, float partialTicks) {
+		HandAnimations animations = of(hand);
+		BlockMorph.Target morph = animations.morph();
+		float weight = animations.outAndBack.weight(ticks + partialTicks);
+		if (animations.owner() == HandAnimations.Owner.MORPH && morph != null && weight > 0) {
+			BlockMorph.apply(pose, item, morph, frame, weight);
 		}
 	}
 
@@ -114,14 +136,10 @@ final class SwingAnimator {
 		pose.rotateDegrees(Axis.XP, animations.shake.tilt(now));
 	}
 
-	private static void applyReach(PoseStack pose, HandAnimations animations, HumanoidArm arm, double now) {
-		Vec3 target = animations.reachTarget();
-		float weight = animations.reach.weight(now);
-		if (target == null || weight <= 0) {
-			return;
-		}
-		Vector3f delta = HandSpace.fromWorld(target).sub(HandSpace.itemRest(arm)).mul(weight);
-		pose.translate(delta.x, delta.y, delta.z);
+	private static HumanoidArm swungArm(LocalPlayer player) {
+		LivingEntity.SwingDescription swing = player.getCurrentSwing();
+		boolean main = swing == null || swing.hand() == InteractionHand.MAIN_HAND;
+		return main ? player.getMainArm() : player.getMainArm().getOpposite();
 	}
 
 	private HandAnimations swungHand(LivingEntity player) {

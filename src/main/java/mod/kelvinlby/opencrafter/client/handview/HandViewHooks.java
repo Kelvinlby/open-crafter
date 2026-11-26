@@ -6,6 +6,7 @@ import mod.kelvinlby.opencrafter.core.config.handview.HandViewConfig;
 import mod.kelvinlby.opencrafter.core.config.handview.SwingConfig;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.client.renderer.item.ItemStackRenderState;
 import net.minecraft.client.renderer.entity.state.AvatarRenderState;
 import net.minecraft.client.renderer.state.level.FirstPersonHandsAndItemsRenderState;
 import net.minecraft.client.renderer.state.level.PlayerRenderState;
@@ -27,6 +28,8 @@ public final class HandViewHooks {
 	private static @Nullable HandView view;
 	/** Partial tick of the hands being rendered; set before every hand pass (render thread). */
 	private static float partialTicks;
+	/** The hand pass's frame as it began. */
+	private static final HandFrame handFrame = new HandFrame();
 
 	private HandViewHooks() {
 	}
@@ -37,8 +40,9 @@ public final class HandViewHooks {
 
 	// ---- rendering (FirstPersonHandsAndItemsRenderer) ----
 
-	public static void beginHands(float partial) {
+	public static void beginHands(float partial, PoseStack pose) {
 		partialTicks = partial;
+		handFrame.begin(pose);
 	}
 
 	/** The hands' lag behind turns; 0 keeps them fixed to the camera. */
@@ -66,7 +70,7 @@ public final class HandViewHooks {
 	}
 
 	/** Right before a held item is drawn, in its pose. */
-	public static void beforeItem(InteractionHand hand, PoseStack pose) {
+	public static void beforeItem(InteractionHand hand, PoseStack pose, ItemStackRenderState item) {
 		HandViewConfig config = active();
 		LocalPlayer player = Minecraft.getInstance().player;
 		if (config == null || player == null) {
@@ -87,6 +91,7 @@ public final class HandViewHooks {
 		if (eat < 1) {
 			HandPose.apply(pose, hand == InteractionHand.MAIN_HAND ? config.mainHand : config.offHand, 1 - eat);
 		}
+		view.swings.applyMorph(pose, hand, item, handFrame, partialTicks);
 	}
 
 	/** Before vanilla places a held item by the arm, in camera space: the way back from eating, unless {@code using}. */

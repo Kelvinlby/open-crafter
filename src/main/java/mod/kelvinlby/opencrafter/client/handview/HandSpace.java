@@ -3,8 +3,9 @@ package mod.kelvinlby.opencrafter.client.handview;
 import mod.kelvinlby.opencrafter.mixin.handview.CameraAccessor;
 import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
-import net.minecraft.world.entity.HumanoidArm;
+import net.minecraft.core.BlockPos;
 import net.minecraft.world.phys.Vec3;
+import org.joml.Matrix4f;
 import org.joml.Quaternionf;
 import org.joml.Vector3f;
 
@@ -13,28 +14,26 @@ import org.joml.Vector3f;
  * drawn with the HUD field of view instead of the world's.
  */
 final class HandSpace {
-	/** Where vanilla holds an item, relative to the camera ({@code applyItemArmTransform}). */
-	private static final float ITEM_X = 0.56F;
-	private static final float ITEM_Y = -0.52F;
-	private static final float ITEM_Z = -0.72F;
-
 	private HandSpace() {
 	}
 
-	/** A world position, placed so that the hand pass draws it where the world pass does. */
-	static Vector3f fromWorld(Vec3 world) {
+	/** World axes to camera axes: the view's rotation. */
+	static Matrix4f viewRotation() {
 		Camera camera = Minecraft.getInstance().gameRenderer.mainCamera();
-		Vec3 eye = camera.position();
-		Vector3f local = new Vector3f((float) (world.x - eye.x), (float) (world.y - eye.y), (float) (world.z - eye.z));
-		local.rotate(camera.rotation().conjugate(new Quaternionf()));
-		float fovRatio = tanHalf(((CameraAccessor) camera).openCrafter$hudFov()) / tanHalf(camera.getFov());
-		local.x *= fovRatio;
-		local.y *= fovRatio;
-		return local;
+		return new Matrix4f().rotation(camera.rotation().conjugate(new Quaternionf()));
 	}
 
-	static Vector3f itemRest(HumanoidArm arm) {
-		return new Vector3f(arm == HumanoidArm.RIGHT ? ITEM_X : -ITEM_X, ITEM_Y, ITEM_Z);
+	/** Camera space as the world draws it to camera space as the hand pass draws it (another field of view). */
+	static Matrix4f fovCorrection() {
+		Camera camera = Minecraft.getInstance().gameRenderer.mainCamera();
+		float ratio = tanHalf(((CameraAccessor) camera).openCrafter$hudFov()) / tanHalf(camera.getFov());
+		return new Matrix4f().scaling(ratio, ratio, 1);
+	}
+
+	/** A block's corner relative to the eye, in world axes. */
+	static Vector3f offsetFromEye(BlockPos pos) {
+		Vec3 eye = Minecraft.getInstance().gameRenderer.mainCamera().position();
+		return new Vector3f((float) (pos.getX() - eye.x), (float) (pos.getY() - eye.y), (float) (pos.getZ() - eye.z));
 	}
 
 	private static float tanHalf(float fovDegrees) {

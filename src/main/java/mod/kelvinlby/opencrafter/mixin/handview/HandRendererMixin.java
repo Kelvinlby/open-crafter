@@ -31,7 +31,7 @@ abstract class HandRendererMixin {
 	@Inject(method = "submitHandsWithItems", at = @At("HEAD"))
 	private void openCrafter$beginHands(float partialTicks, PoseStack poseStack, SubmitNodeCollector collector, PlayerRenderState player,
 		FirstPersonHandsAndItemsRenderState hands, CallbackInfo ci) {
-		HandViewHooks.beginHands(partialTicks);
+		HandViewHooks.beginHands(partialTicks, poseStack);
 	}
 
 	// The hands' lag behind turns: (view - bob) * 0.1 about X, then Y
@@ -70,7 +70,7 @@ abstract class HandRendererMixin {
 		target = "Lnet/minecraft/client/renderer/item/ItemStackRenderState;submit(Lcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/SubmitNodeCollector;III)V"))
 	private void openCrafter$item(ItemStackRenderState item, PoseStack poseStack, SubmitNodeCollector collector, int light, int overlay, int outline,
 		Operation<Void> original, @Local(argsOnly = true) InteractionHand hand) {
-		HandViewHooks.beforeItem(hand, poseStack);
+		HandViewHooks.beforeItem(hand, poseStack, item);
 		original.call(item, poseStack, collector, light, overlay, outline);
 	}
 

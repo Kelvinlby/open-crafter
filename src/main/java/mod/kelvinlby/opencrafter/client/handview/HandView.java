@@ -48,7 +48,7 @@ final class HandView {
 	}
 
 	void afterUseItemOn(ClientLevel level) {
-		swings.notePlacement(placement == null ? null : placement.placedCentre(level));
+		swings.notePlacement(placement == null ? null : placement.placed(level));
 		placement = null;
 	}
 }

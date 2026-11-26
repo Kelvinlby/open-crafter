@@ -1,32 +1,40 @@
 package mod.kelvinlby.opencrafter.client.handview;
 
-import mod.kelvinlby.opencrafter.client.handview.anim.ReachMotion;
+import mod.kelvinlby.opencrafter.client.handview.anim.OutAndBack;
 import mod.kelvinlby.opencrafter.client.handview.anim.ShakeMotion;
 import mod.kelvinlby.opencrafter.client.handview.anim.StubSwing;
-import net.minecraft.world.phys.Vec3;
 import org.jspecify.annotations.Nullable;
 
 /** The custom swing one hand is playing, if any; at most one owns the hand at a time. */
 final class HandAnimations {
 	enum Owner {
 		VANILLA,
+		/** Left click held: a short jab that trembles. */
 		STUB,
+		/** Right click on an entity or block: a shake while held. */
 		SHAKE,
-		REACH
+		/** A 3D block item placed: it turns into the placed block and back. */
+		MORPH,
+		/** A flat item placed: a small swing out and back. */
+		JAB
 	}
+
+	/** How far into the swing the jab goes. */
+	static final float JAB_PROGRESS = 0.05F;
 
 	final StubSwing stub = new StubSwing();
 	final ShakeMotion shake = new ShakeMotion();
-	final ReachMotion reach = new ReachMotion();
+	final OutAndBack outAndBack = new OutAndBack();
 	private Owner owner = Owner.VANILLA;
-	private @Nullable Vec3 reachTarget;
+	private BlockMorph.@Nullable Target morph;
 
 	Owner owner() {
 		return owner;
 	}
 
-	@Nullable Vec3 reachTarget() {
-		return reachTarget;
+	/** The block the morph turns into while {@link Owner#MORPH} plays. */
+	BlockMorph.@Nullable Target morph() {
+		return morph;
 	}
 
 	void playStub(double now) {
@@ -39,10 +47,15 @@ final class HandAnimations {
 		shake.engage(now);
 	}
 
-	void playReach(double now, Vec3 target, double durationTicks) {
-		take(Owner.REACH);
-		reachTarget = target;
-		reach.start(now, durationTicks);
+	void playMorph(double now, BlockMorph.Target target, double durationTicks) {
+		take(Owner.MORPH);
+		morph = target;
+		outAndBack.start(now, durationTicks);
+	}
+
+	void playJab(double now, double durationTicks) {
+		take(Owner.JAB);
+		outAndBack.start(now, durationTicks);
 	}
 
 	/** Hands the hand back to vanilla's swing at once. */
@@ -54,20 +67,20 @@ final class HandAnimations {
 	void update(double now, boolean attackHeld, boolean useHeld, boolean vanillaSwinging) {
 		stub.update(now, attackHeld);
 		shake.update(now, useHeld);
-		reach.update(now);
-		if (!ownerActive(vanillaSwinging)) {
+		outAndBack.update(now);
+		if (!ownerActive() && !vanillaSwinging) {
 			owner = Owner.VANILLA;
 		}
 	}
 
-	// A finished stub keeps the hand (at progress 0) until the vanilla swing it replaced has ended too,
-	// so a short click never hands over to that swing midway
-	private boolean ownerActive(boolean vanillaSwinging) {
+	// A finished animation keeps the hand (at rest) until the vanilla swing it replaced has ended too,
+	// so it never hands over to that swing midway
+	private boolean ownerActive() {
 		return switch (owner) {
 			case VANILLA -> true;
-			case STUB -> stub.active() || vanillaSwinging;
+			case STUB -> stub.active();
 			case SHAKE -> shake.active();
-			case REACH -> reach.active();
+			case MORPH, JAB -> outAndBack.active();
 		};
 	}
 
@@ -75,7 +88,7 @@ final class HandAnimations {
 		if (owner != next) {
 			stub.reset();
 			shake.reset();
-			reach.reset();
+			outAndBack.reset();
 		}
 		owner = next;
 	}

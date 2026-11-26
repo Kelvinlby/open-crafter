@@ -5,10 +5,10 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 
-class ReachMotionTest {
+class OutAndBackTest {
 	@Test
 	void reachesOutHalfwayAndComesBack() {
-		ReachMotion reach = new ReachMotion();
+		OutAndBack reach = new OutAndBack();
 		reach.start(0, 6);
 		assertEquals(0, reach.weight(0), 1e-6);
 		assertEquals(1, reach.weight(3), 1e-6);
@@ -19,7 +19,7 @@ class ReachMotionTest {
 
 	@Test
 	void restartingMidReachContinuesFromTheSameWeight() {
-		ReachMotion reach = new ReachMotion();
+		OutAndBack reach = new OutAndBack();
 		reach.start(0, 6);
 		float before = reach.weight(4.5);
 		reach.start(4.5, 6);
