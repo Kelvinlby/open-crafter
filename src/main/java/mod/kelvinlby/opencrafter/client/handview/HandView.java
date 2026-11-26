@@ -14,6 +14,7 @@ final class HandView {
 	final SwingAnimator swings = new SwingAnimator();
 	final ServerRotation rotation = new ServerRotation();
 	final HandPose pose = new HandPose();
+	final EatRelease eats = new EatRelease();
 	private final ConfigStore config;
 	private @Nullable PlacementProbe placement;
 
@@ -30,6 +31,7 @@ final class HandView {
 	void onTickStart(Minecraft minecraft) {
 		HandViewConfig active = active();
 		swings.tick(minecraft, active == null ? null : active.swing);
+		eats.tick();
 	}
 
 	void onTickEnd(Minecraft minecraft) {

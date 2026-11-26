@@ -74,6 +74,16 @@ abstract class HandRendererMixin {
 		original.call(item, poseStack, collector, light, overlay, outline);
 	}
 
+	// Every place a held item is put by the arm; the hook leaves uses alone
+	@WrapOperation(method = "submitArmWithItem", at = @At(value = "INVOKE",
+		target = "Lnet/minecraft/client/renderer/FirstPersonHandsAndItemsRenderer;applyItemArmTransform(Lcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/world/entity/HumanoidArm;F)V"))
+	private void openCrafter$itemArm(FirstPersonHandsAndItemsRenderer self, PoseStack poseStack, HumanoidArm arm, float inverseArmHeight, Operation<Void> original,
+		@Local(argsOnly = true) InteractionHand hand, @Local(argsOnly = true) PlayerRenderState playerState,
+		@Local(argsOnly = true) FirstPersonHandsAndItemsRenderState hands) {
+		HandViewHooks.beforeItemArm(poseStack, arm, HandViewHooks.inUse(playerState, hands, hand));
+		original.call(self, poseStack, arm, inverseArmHeight);
+	}
+
 	@Inject(method = "renderPlayerArm", at = @At("HEAD"))
 	private void openCrafter$arm(PoseStack poseStack, SubmitNodeCollector collector, int light, float inverseArmHeight, float attackValue, HumanoidArm arm,
 		PlayerRenderState playerState, CallbackInfo ci) {
@@ -82,7 +92,7 @@ abstract class HandRendererMixin {
 
 	@Inject(method = "applyEatTransform", at = @At("HEAD"))
 	private void openCrafter$eat(PoseStack poseStack, float partialTicks, HumanoidArm arm, float remaining, int useDuration, CallbackInfo ci) {
-		HandViewHooks.beforeEat(poseStack);
+		HandViewHooks.beforeEat(poseStack, arm, remaining, useDuration);
 	}
 
 	// Keeps the bob, leaves out the move into the middle
@@ -94,14 +104,15 @@ abstract class HandRendererMixin {
 	}
 
 	@WrapOperation(method = "applyEatTransform", at = @At(value = "INVOKE", target = "Ljava/lang/Math;pow(DD)D"))
-	private double openCrafter$eatCurve(double left, double exponent, Operation<Double> original, @Local(argsOnly = true) int useDuration) {
-		return HandViewHooks.eatPow(left, exponent, useDuration, (a, b) -> original.call(a, b));
+	private double openCrafter$eatCurve(double left, double exponent, Operation<Double> original, @Local(argsOnly = true) int useDuration,
+		@Local(argsOnly = true) HumanoidArm arm) {
+		return HandViewHooks.eatPow(left, exponent, useDuration, arm, (a, b) -> original.call(a, b));
 	}
 
 	// The up-and-down bob, translate(0, h, 0)
 	@ModifyArg(method = "applyEatTransform", at = @At(value = "INVOKE", target = "Lcom/mojang/blaze3d/vertex/PoseStack;translate(FFF)V", ordinal = 0), index = 1)
 	private float openCrafter$eatBob(float bob, @Local(argsOnly = true, ordinal = 0) float partialTicks, @Local(argsOnly = true, ordinal = 1) float remaining,
-		@Local(argsOnly = true) int useDuration) {
-		return HandViewHooks.eatBob(bob, remaining, partialTicks, useDuration);
+		@Local(argsOnly = true) int useDuration, @Local(argsOnly = true) HumanoidArm arm) {
+		return HandViewHooks.eatBob(bob, remaining, partialTicks, useDuration, arm);
 	}
 }

@@ -62,7 +62,7 @@ module and adds per-click swing animations:
 - General: server rotations, no rotation delay, hide empty hand, skip swapping animation
 - Swing Animation: *Left Click* (Vanilla / **Stub**: a short jab to 3–5 % of the swing that
   trembles while held), *Right Click* (Vanilla / **Smooth**: food slides from the hand to the
-  middle, a placed block's item reaches out to where the block lands, using an entity or block
+  middle and eases back when you stop, a placed block's item reaches out to where the block lands, using an entity or block
   shakes the hand until released), old animations, swing hand, swing duration
 - Main Hand / Off Hand / Arm: scale, position and rotation per axis
 - Eating: disable, offset, scale, bob

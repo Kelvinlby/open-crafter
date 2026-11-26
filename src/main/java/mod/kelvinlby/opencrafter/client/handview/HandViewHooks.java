@@ -5,6 +5,9 @@ import mod.kelvinlby.opencrafter.client.handview.anim.EatCurve;
 import mod.kelvinlby.opencrafter.core.config.handview.HandViewConfig;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.client.renderer.entity.state.AvatarRenderState;
+import net.minecraft.client.renderer.state.level.FirstPersonHandsAndItemsRenderState;
+import net.minecraft.client.renderer.state.level.PlayerRenderState;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.HumanoidArm;
 import net.minecraft.world.entity.LivingEntity;
@@ -75,14 +78,30 @@ public final class HandViewHooks {
 		}
 		// The eating pose is already turned into the middle, where hand transforms would push the food off centre:
 		// they fade out as the eating pose fades in
-		float eat = EatPose.progress(config, player, hand, partialTicks);
+		float eat = EatPose.progress(config, arm, view.eats, partialTicks);
 		float eatScale = 1 + ((float) config.eating.scale - 1) * eat;
 		if (eat > 0 && eatScale != 1) {
-			view.pose.scaleAroundModel(pose, player, player.getUseItem(), arm, eatScale);
+			view.pose.scaleAroundModel(pose, player, player.getItemInHand(hand), arm, eatScale);
 		}
 		if (eat < 1) {
 			HandPose.apply(pose, hand == InteractionHand.MAIN_HAND ? config.mainHand : config.offHand, 1 - eat);
 		}
+	}
+
+	/** Before vanilla places a held item by the arm, in camera space: the way back from eating, unless {@code using}. */
+	public static void beforeItemArm(PoseStack pose, HumanoidArm arm, boolean using) {
+		HandViewConfig config = active();
+		if (config == null || using || !EatPose.smooth(config)) {
+			return;
+		}
+		view.eats.noteNotEating(arm, partialTicks);
+		float level = EatPose.progress(config, arm, view.eats, partialTicks);
+		if (level <= 0) {
+			return;
+		}
+		HandPose.translate(pose, config.eating.offset, level);
+		pose.translate(0, view.eats.bob(arm, partialTicks), 0);
+		EatPose.apply(pose, arm, level);
 	}
 
 	/** Right before a bare arm is drawn, in its pose. */
@@ -96,6 +115,12 @@ public final class HandViewHooks {
 		HandPose.apply(pose, config.arm, 1);
 	}
 
+	/** Whether vanilla draws {@code hand} in a use pose this frame (its own test, on the render state). */
+	public static boolean inUse(PlayerRenderState player, FirstPersonHandsAndItemsRenderState hands, InteractionHand hand) {
+		AvatarRenderState avatar = player.avatarRenderState;
+		return avatar != null && avatar.isUsingItem && hands.useItemRemainingTicks > 0 && avatar.useItemHand == hand;
+	}
+
 	// ---- eating (applyEatTransform) ----
 
 	public static boolean eatDisabled() {
@@ -104,25 +129,27 @@ public final class HandViewHooks {
 	}
 
 	/** Before vanilla's eating pose, in camera space. */
-	public static void beforeEat(PoseStack pose) {
+	public static void beforeEat(PoseStack pose, HumanoidArm arm, float remainingTicks, int useDuration) {
 		HandViewConfig config = active();
-		LocalPlayer player = Minecraft.getInstance().player;
-		if (config != null && player != null && !config.eating.disableAnimation) {
-			HandPose.translate(pose, config.eating.offset, EatPose.blend(config, player, partialTicks));
+		if (config == null || config.eating.disableAnimation) {
+			return;
 		}
+		float level = EatPose.blend(config, arm, view.eats, remainingTicks - partialTicks + 1, useDuration, partialTicks);
+		view.eats.noteEating(arm, level, partialTicks);
+		HandPose.translate(pose, config.eating.offset, level);
 	}
 
 	/** Vanilla's {@code pow(left, 27)}: the eat pose is {@code 1 - pow}, so the smooth curve answers {@code 1 - blend}. */
-	public static double eatPow(double left, double exponent, int useDuration, DoubleBinaryOperator vanilla) {
+	public static double eatPow(double left, double exponent, int useDuration, HumanoidArm arm, DoubleBinaryOperator vanilla) {
 		HandViewConfig config = active();
 		if (config == null || !EatPose.smooth(config)) {
 			return vanilla.applyAsDouble(left, exponent);
 		}
-		return 1 - EatCurve.smoothBlend(left, useDuration);
+		return 1 - Math.max(EatCurve.smoothBlend(left, useDuration), view.eats.level(arm, partialTicks));
 	}
 
-	/** The eating pose's up-and-down bob. */
-	public static float eatBob(float bob, float remainingTicks, float partial, int useDuration) {
+	/** The eating pose's up-and-down bob; a smooth one fades in, from what is left of the last use's. */
+	public static float eatBob(float bob, float remainingTicks, float partial, int useDuration, HumanoidArm arm) {
 		HandViewConfig config = active();
 		if (config == null) {
 			return bob;
@@ -130,7 +157,9 @@ public final class HandViewHooks {
 		float scaled = bob * (float) config.eating.bob;
 		if (EatPose.smooth(config)) {
 			scaled *= (float) EatCurve.smoothBobFade((remainingTicks - partial + 1) / useDuration, useDuration);
+			scaled = Math.max(scaled, view.eats.bob(arm, partial));
 		}
+		view.eats.noteBob(arm, scaled);
 		return scaled;
 	}
 
@@ -155,6 +184,11 @@ public final class HandViewHooks {
 
 	public static float offHeightStep(float step, float height) {
 		return skipsSwap() ? 1 - height : step;
+	}
+
+	/** Smooth right clicks keep a stack that only changed its count (a bite, a throw) raised instead of re-equipping it. */
+	public static boolean keepsShownItem(ItemStack visible, ItemStack next) {
+		return keepsHeightOnUse() && ItemStack.isSameItemSameComponents(visible, next);
 	}
 
 	/** Smooth right clicks keep the item where it is instead of dropping it after a use. */

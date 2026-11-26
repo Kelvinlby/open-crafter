@@ -27,8 +27,9 @@ abstract class HandItemsMixin {
 	private float offHandHeight;
 
 	@ModifyReturnValue(method = "shouldInstantlyReplaceVisibleItem", at = @At("RETURN"))
-	private boolean openCrafter$skipSwap(boolean instantly) {
-		return instantly || HandViewHooks.skipsSwap();
+	private boolean openCrafter$skipSwap(boolean instantly, @Local(argsOnly = true, ordinal = 0) ItemStack visible,
+		@Local(argsOnly = true, ordinal = 1) ItemStack next) {
+		return instantly || HandViewHooks.skipsSwap() || HandViewHooks.keepsShownItem(visible, next);
 	}
 
 	// mainHandHeight += clamp(target - mainHandHeight, -0.4, 0.4)
