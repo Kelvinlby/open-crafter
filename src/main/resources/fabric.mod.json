@@ -17,6 +17,9 @@
 		],
 		"client": [
 			"mod.kelvinlby.opencrafter.client.OpenCrafterClient"
+		],
+		"modmenu": [
+			"mod.kelvinlby.opencrafter.client.config.ModMenuEntry"
 		]
 	},
 	"mixins": [
@@ -34,6 +37,10 @@
 			"environment": "client"
 		},
 		{
+			"config": "open-crafter.handview.mixins.json",
+			"environment": "client"
+		},
+		{
 			"config": "open-crafter.iris.mixins.json",
 			"environment": "client"
 		}
@@ -42,6 +49,7 @@
 		"fabricloader": ">=0.20.1",
 		"minecraft": "~26.3",
 		"java": ">=25",
-		"fabric-api": "*"
+		"fabric-api": "*",
+		"yet_another_config_lib_v3": ">=3.9.7"
 	}
 }

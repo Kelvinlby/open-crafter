@@ -1,5 +1,7 @@
 package mod.kelvinlby.opencrafter.core.config;
 
+import java.util.Objects;
+
 /** Transport settings. Empty paths / 0 port / empty token mean "pick a platform default". */
 public final class TransportConfig {
 	/** How the control channel listens. */
@@ -30,5 +32,15 @@ public final class TransportConfig {
 		copy.sharedMemoryPath = sharedMemoryPath;
 		copy.ringSlots = ringSlots;
 		return copy;
+	}
+
+	/** Whether the transport would listen differently with {@code other}. */
+	public boolean sameAs(TransportConfig other) {
+		return listen == other.listen
+			&& Objects.equals(socketPath, other.socketPath)
+			&& tcpPort == other.tcpPort
+			&& Objects.equals(token, other.token)
+			&& Objects.equals(sharedMemoryPath, other.sharedMemoryPath)
+			&& ringSlots == other.ringSlots;
 	}
 }

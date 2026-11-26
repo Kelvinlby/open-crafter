@@ -12,7 +12,7 @@ import java.util.Map;
 
 /**
  * The user-facing control surface of the vision sensor, shared by the backend ops and the
- * {@code /opencrafter vision} client command. Thread-safe.
+ * settings screen. Thread-safe.
  */
 public final class VisionControl {
 	private final VisionSettings settings;

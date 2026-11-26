@@ -4,11 +4,14 @@ plugins {
 }
 
 repositories {
-	// Add repositories to retrieve artifacts from in here.
-	// You should only use this when depending on other mods because
-	// Loom adds the essential maven repositories to download Minecraft and libraries from automatically.
-	// See https://docs.gradle.org/current/userguide/declaring_repositories.html
-	// for more information about repositories.
+	maven("https://maven.isxander.dev/releases") {
+		name = "Xander"
+		content { includeGroup("dev.isxander") }
+	}
+	maven("https://maven.terraformersmc.com/releases") {
+		name = "TerraformersMC"
+		content { includeGroup("com.terraformersmc") }
+	}
 }
 
 dependencies {
@@ -18,6 +21,14 @@ dependencies {
 
 	// Fabric API. This is technically optional, but you probably want it anyway.
 	implementation("net.fabricmc.fabric-api:fabric-api:${providers.gradleProperty("fabric_api_version").get()}")
+
+	// The settings screen. Bundled (jar-in-jar) so users need no extra download; a newer standalone copy wins.
+	val yacl = "dev.isxander:yet-another-config-lib:${providers.gradleProperty("yacl_version").get()}"
+	// Its own libraries ship inside its jar, so its POM dependencies are not needed.
+	implementation(yacl) { isTransitive = false }
+	include(yacl)
+	// Optional: the settings screen also opens from Mod Menu's list when it is installed.
+	compileOnly("com.terraformersmc:modmenu:${providers.gradleProperty("modmenu_version").get()}") { isTransitive = false }
 
 	testImplementation(platform("org.junit:junit-bom:5.13.4"))
 	testImplementation("org.junit.jupiter:junit-jupiter")

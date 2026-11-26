@@ -68,18 +68,19 @@ owner-only.
 
 ### 1.3 Manual configuration
 
-In game (`/opencrafter transport ...`, persisted in `config/open-crafter.json`, applied at once;
-connected backends are disconnected):
+In game, in the settings screen's **Transport** tab (`/opencrafter`, or Mod Menu; persisted in
+`config/open-crafter.json`, applied on save; connected backends are disconnected):
 
-| Command | Effect |
+| Setting | Effect |
 |---|---|
-| `status` | endpoint, discovery file, frame ring, connections, settings |
-| `listen auto\|unix\|tcp` | endpoint kind |
-| `socket <path>` / `socket default` | Unix socket file |
-| `port <n>` / `port default` | TCP port (0 = any free port) |
-| `shm <path>` / `shm default` | frame ring file |
-| `token set <value>` / `token random` / `token copy` | fixed or per-launch token; `copy` puts it on the clipboard (it is never printed, chat is part of the vision stream) |
-| `restart` | reopen everything |
+| Listen: Auto / Unix / TCP | endpoint kind |
+| Socket Path (empty = default) | Unix socket file |
+| TCP Port (0 = any free port) | TCP port |
+| Shared Memory Path (empty = default) | frame ring file |
+| Ring Slots | frames the ring holds |
+| Fixed Token (empty = random per launch) | TCP token |
+| Copy Token | puts the token in use on the clipboard without showing it |
+| Status | endpoint, discovery file, frame ring, connections (as the screen opened) |
 
 Backend side (reference client): `Client("unix:/path")` / `Client("tcp:127.0.0.1:25599",
 token=...)`, or the environment variables `OPENCRAFTER_ENDPOINT` (`OPENCRAFTER_SOCKET`, a

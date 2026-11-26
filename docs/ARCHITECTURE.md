@@ -1,8 +1,9 @@
 # open-crafter architecture
 
 open-crafter turns the Minecraft player into an embodied agent. An external process
-(the **backend**) reads **sensors** and drives **executors**. The mod has no in-game GUI
-besides a small `/opencrafter` client command for configuration.
+(the **backend**) reads **sensors** and drives **executors**. In game it adds a settings
+screen (YACL, `client.config`, opened with `/opencrafter` or from Mod Menu) and a purely
+visual first-person Hand View feature.
 
 ## Layers
 
@@ -24,10 +25,17 @@ Feature areas are `ModModule`s, installed by `client.OpenCrafterClient` with a `
 | Module | Package | Mixin config |
 |---|---|---|
 | Transport | `transport` | – |
-| Vision (RGB + flow) | `client.vision`, `client.command` | `open-crafter.vision.mixins.json` |
+| Vision (RGB + flow) | `client.vision` | `open-crafter.vision.mixins.json` |
 | Status sensor | `client.status` | – |
 | Input executors | `client.input` | `open-crafter.input.mixins.json` |
 | Inventory executors | `client.inventory` | `open-crafter.inventory.mixins.json` |
+| Hand View | `client.handview` (pure math in `client.handview.anim`) | `open-crafter.handview.mixins.json` |
+| Settings screen | `client.config` | – |
+
+Settings live in `core.config` (`ConfigStore`, one POJO per area). The settings screen edits a
+copy and hands it back with `ConfigStore.replace`; `onReplace` listeners apply it (the
+transport reopens when its settings changed, vision takes the new rate, Hand View and input
+read the live settings).
 
 Modules register **ops** in the `HandlerRegistry` (op name → handler + `ThreadAffinity`)
 and non-visual sensors in the `SensorRegistry` (sound etc. can be added later the same way).
@@ -52,7 +60,7 @@ Each game writes a discovery file into a per-user directory that the backend als
 the folder the sandbox shares with the host; `<temp dir>/open-crafter` on macOS and Windows).
 It names the endpoint, the TCP token if any, and the frame ring. `Client()` needs no
 arguments on Linux (native or Flatpak launchers), macOS and Windows. Manual overrides: the
-`/opencrafter transport` command in game, `Client("<endpoint>")` or `OPENCRAFTER_*`
+Transport tab of the settings screen in game, `Client("<endpoint>")` or `OPENCRAFTER_*`
 environment variables in Python. Details in `docs/PROTOCOL.md` §1.1–1.3.
 
 ### Control channel: Unix domain socket or loopback TCP

@@ -3,7 +3,6 @@ package mod.kelvinlby.opencrafter.client.vision;
 import mod.kelvinlby.opencrafter.api.ModContext;
 import mod.kelvinlby.opencrafter.api.ModModule;
 import mod.kelvinlby.opencrafter.api.frame.FramePublisher;
-import mod.kelvinlby.opencrafter.client.command.VisionCommand;
 import mod.kelvinlby.opencrafter.client.vision.capture.VisionCapture;
 import mod.kelvinlby.opencrafter.client.vision.debug.DebugDumpPublisher;
 import mod.kelvinlby.opencrafter.client.vision.debug.DebugScenario;
@@ -15,6 +14,8 @@ import java.util.Arrays;
 
 /** Vision sensor: RGB and ground-truth optical flow of the final presented frame. */
 public final class VisionModule implements ModModule {
+	private VisionControl control;
+
 	@Override
 	public void install(ModContext context) {
 		VisionPipelines.bootstrap();
@@ -25,11 +26,16 @@ public final class VisionModule implements ModModule {
 		VisionCapture capture = new VisionCapture(settings, publisher, stats, flow);
 		VisionHooks.install(capture, flow);
 		ClientTickEvents.END_CLIENT_TICK.register(client -> capture.onClientTick());
-		VisionControl control = new VisionControl(settings, stats, publisher);
+		context.config().onReplace((old, edited) -> settings.useRate(edited.vision.rateMode, edited.vision.fixedHz));
+		control = new VisionControl(settings, stats, publisher);
 		applyStartupStreams(control);
 		new VisionOps(control).register(context.handlers());
-		VisionCommand.register(control);
 		DebugScenario.installIfRequested();
+	}
+
+	/** The control surface, for the settings screen; available after {@link #install}. */
+	public VisionControl control() {
+		return control;
 	}
 
 	/** {@code -Dopencrafter.vision.streams=rgb,flow,...} sets the streams before any backend connects (testing aid). */

@@ -9,7 +9,7 @@ import java.util.Set;
 
 /**
  * Runtime vision settings shared between the transport thread (ops), the main thread
- * (commands) and the render thread (capture). Reads are lock-free snapshots; rate
+ * (settings screen) and the render thread (capture). Reads are lock-free snapshots; rate
  * changes are also persisted through the {@link ConfigStore}.
  */
 public final class VisionSettings {
@@ -51,13 +51,19 @@ public final class VisionSettings {
 
 	/** Changes the push rate and persists it. Performs file I/O: never call on the render thread. */
 	public synchronized void setRate(VisionConfig.RateMode mode, double fixedHz) {
-		double hz = clampHz(fixedHz);
-		Snapshot old = current;
-		current = new Snapshot(old.streams(), mode, hz);
+		double hz = useRate(mode, fixedHz);
 		config.update(root -> {
 			root.vision.rateMode = mode;
 			root.vision.fixedHz = hz;
 		});
+	}
+
+	/** Changes the push rate without persisting it (the settings screen already saved it); returns the clamped Hz. */
+	public synchronized double useRate(VisionConfig.RateMode mode, double fixedHz) {
+		double hz = clampHz(fixedHz);
+		Snapshot old = current;
+		current = new Snapshot(old.streams(), mode, hz);
+		return hz;
 	}
 
 	public static double clampHz(double hz) {

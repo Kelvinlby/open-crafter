@@ -1,0 +1,19 @@
+{
+	"required": true,
+	"package": "mod.kelvinlby.opencrafter.mixin.handview",
+	"compatibilityLevel": "JAVA_25",
+	"client": [
+		"CameraAccessor",
+		"HandItemsMixin",
+		"HandRendererMixin",
+		"LivingEntitySwingMixin",
+		"LocalPlayerAccessor",
+		"MinecraftClickMixin"
+	],
+	"injectors": {
+		"defaultRequire": 1
+	},
+	"overwrites": {
+		"requireAnnotations": true
+	}
+}

@@ -45,12 +45,29 @@ with Client() as c:                      # finds the running game by itself
 `Client()` pairs with the game automatically on Linux (also Flatpak launchers such as Prism
 from Flathub), macOS and Windows: the game writes a small discovery file that the client looks
 for. `python -m opencrafter` lists running games. To configure it by hand, use
-`/opencrafter transport` in game, or `Client("unix:/path.sock")`, `Client("tcp:127.0.0.1:port",
+the Transport tab of the settings screen in game, or `Client("unix:/path.sock")`, `Client("tcp:127.0.0.1:port",
 token=...)`, `OPENCRAFTER_ENDPOINT` / `OPENCRAFTER_TOKEN` / `OPENCRAFTER_INSTANCE` in Python
 ([details](docs/PROTOCOL.md#11-finding-the-game-discovery)).
 
-Configure the push rate in game too: `/opencrafter vision rate tick|fps|hz <n>` (persisted in
-`config/open-crafter.json`).
+## Settings
+
+`/opencrafter` (or Mod Menu's configure button) opens the settings screen, built with
+[YetAnotherConfigLib](https://modrinth.com/mod/yacl), which ships inside the jar (a newer
+standalone copy wins). Tabs: **Hand View**, **Vision** (push rate), **Input** (hold limits) and
+**Transport** (endpoint, token). Everything is persisted in `config/open-crafter.json`.
+
+**Hand View** (off until its *Enabled* toggle is on; purely visual) ports Singularity's Hand View
+module and adds per-click swing animations:
+
+- General: server rotations, no rotation delay, hide empty hand, skip swapping animation
+- Swing Animation: *Left Click* (Vanilla / **Stub**: a short jab to 3–5 % of the swing that
+  trembles while held), *Right Click* (Vanilla / **Smooth**: food slides from the hand to the
+  middle, a placed block's item reaches out to where the block lands, using an entity or block
+  shakes the hand until released), old animations, swing hand, swing duration
+- Main Hand / Off Hand / Arm: scale, position and rotation per axis
+- Eating: disable, offset, scale, bob
+
+It uses only chaining injectors, so it runs alongside Singularity (both hand views then stack).
 
 ## Documentation
 

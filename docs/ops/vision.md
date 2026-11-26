@@ -43,10 +43,10 @@ Returns `streams`, `rate_mode`, `fixed_hz`, `has_readers`,
 `frames_dropped_busy_gpu` (all readback buffers still in flight), `frames_dropped_no_slot`
 (no free shared-memory slot), `last_frame_index`, `width`, `height`, `backend`.
 
-### Client command
+### Settings screen
 
-`/opencrafter vision rate <tick|fps|hz> [n]` sets (and persists) the rate,
-`/opencrafter vision status` prints the status map.
+The **Vision** tab of the settings screen (`/opencrafter`) sets (and persists) the rate mode
+and the fixed rate, and shows the status map as it was when the screen opened.
 
 ## Frame meta
 
