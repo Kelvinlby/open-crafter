@@ -1,6 +1,7 @@
 package mod.kelvinlby.opencrafter.mixin.handview;
 
 import com.llamalad7.mixinextras.injector.ModifyExpressionValue;
+import com.llamalad7.mixinextras.injector.wrapmethod.WrapMethod;
 import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
 import com.llamalad7.mixinextras.sugar.Local;
@@ -8,12 +9,14 @@ import com.mojang.blaze3d.vertex.PoseStack;
 import mod.kelvinlby.opencrafter.client.handview.HandViewHooks;
 import net.minecraft.client.renderer.FirstPersonHandsAndItemsRenderer;
 import net.minecraft.client.renderer.SubmitNodeCollector;
+import net.minecraft.client.renderer.entity.state.AvatarRenderState;
 import net.minecraft.client.renderer.item.ItemStackRenderState;
 import net.minecraft.client.renderer.state.level.FirstPersonHandsAndItemsRenderState;
 import net.minecraft.client.renderer.state.level.PlayerRenderState;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.HumanoidArm;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.player.PlayerSkin;
 import net.minecraft.world.item.ItemStack;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
@@ -88,6 +91,24 @@ abstract class HandRendererMixin {
 	private void openCrafter$arm(PoseStack poseStack, SubmitNodeCollector collector, int light, float inverseArmHeight, float attackValue, HumanoidArm arm,
 		PlayerRenderState playerState, CallbackInfo ci) {
 		HandViewHooks.beforeArm(poseStack, arm);
+	}
+
+	// Both the arm model (wide or slim) and its texture come from the render state's skin; swapped only for this call
+	@WrapMethod(method = "renderPlayerHand")
+	private void openCrafter$armSkin(PoseStack poseStack, SubmitNodeCollector collector, int light, HumanoidArm arm, PlayerRenderState playerState,
+		Operation<Void> original) {
+		AvatarRenderState avatar = playerState.avatarRenderState;
+		PlayerSkin skin = avatar == null ? null : avatar.skin;
+		if (skin != null) {
+			avatar.skin = HandViewHooks.armSkin(skin);
+		}
+		try {
+			original.call(poseStack, collector, light, arm, playerState);
+		} finally {
+			if (skin != null) {
+				avatar.skin = skin;
+			}
+		}
 	}
 
 	@Inject(method = "applyEatTransform", at = @At("HEAD"))

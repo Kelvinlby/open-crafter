@@ -12,6 +12,8 @@ public final class HandViewConfig {
 	public boolean hideEmptyHand = false;
 	/** A newly held item shows at once instead of its swap animation. */
 	public boolean skipSwapping = false;
+	/** Bare arms always show the slim default skin (Alex) instead of the player's own. */
+	public boolean removeSkin = false;
 
 	public SwingConfig swing = new SwingConfig();
 	public HandTransformConfig mainHand = new HandTransformConfig();

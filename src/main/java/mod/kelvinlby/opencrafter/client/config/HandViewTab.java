@@ -40,6 +40,7 @@ final class HandViewTab {
 			.option(Options.bool("hand_view.no_rotation_delay", DEFAULTS.noRotationDelay, () -> draft.noRotationDelay, value -> draft.noRotationDelay = value))
 			.option(Options.bool("hand_view.hide_empty_hand", DEFAULTS.hideEmptyHand, () -> draft.hideEmptyHand, value -> draft.hideEmptyHand = value))
 			.option(Options.bool("hand_view.skip_swapping", DEFAULTS.skipSwapping, () -> draft.skipSwapping, value -> draft.skipSwapping = value))
+			.option(Options.bool("hand_view.remove_skin", DEFAULTS.removeSkin, () -> draft.removeSkin, value -> draft.removeSkin = value))
 			.build();
 	}
 

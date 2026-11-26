@@ -14,6 +14,8 @@
 	"open-crafter.config.hand_view.hide_empty_hand.desc": "Does not render your bare hand when holding nothing.",
 	"open-crafter.config.hand_view.skip_swapping": "Skip Swapping Animation",
 	"open-crafter.config.hand_view.skip_swapping.desc": "Shows a newly held item at once instead of lowering and raising the hand.",
+	"open-crafter.config.hand_view.remove_skin": "Remove Skin",
+	"open-crafter.config.hand_view.remove_skin.desc": "Draws your arm with the slim default skin (Alex) instead of your own, so it looks the same for every player.",
 	"open-crafter.config.hand_view.swing": "Swing Animation",
 	"open-crafter.config.hand_view.swing.desc": "How swings caused by clicks look.",
 	"open-crafter.config.hand_view.swing.left_click": "Left Click",
