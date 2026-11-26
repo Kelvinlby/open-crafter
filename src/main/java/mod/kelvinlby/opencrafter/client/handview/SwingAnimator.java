@@ -4,56 +4,43 @@ import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.math.Axis;
 import mod.kelvinlby.opencrafter.client.handview.anim.RightClickPace;
 import mod.kelvinlby.opencrafter.core.config.handview.SwingConfig;
-import mod.kelvinlby.opencrafter.mixin.handview.HandItemsAccessor;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.player.LocalPlayer;
-import net.minecraft.client.renderer.SubmitNodeCollector;
-import net.minecraft.client.renderer.item.ItemStackRenderState;
-import net.minecraft.core.BlockPos;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.HumanoidArm;
 import net.minecraft.world.entity.LivingEntity;
-import org.joml.Matrix4f;
 import org.jspecify.annotations.Nullable;
-
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
 
 /**
  * Plays the custom left and right click swings: it learns what caused each swing of the local
  * player and then overrides the swing progress and the hand's pose while it renders.
  */
 final class SwingAnimator {
-	/** What a right click did. */
+	/** What a right click's swing was for. */
 	enum RightClick {
-		/** Placed a block: morph into it, or jab. */
-		PLACE,
-		/** Used an entity or block: shake while held. */
-		INTERACT,
+		/** Used an entity: shake while held. */
+		ENTITY,
+		/** Used a block: placed one (jab, or hold still while it flies) or interacted (shake). */
+		BLOCK,
 		/** Used the item itself (throwing, ...): vanilla swing. */
-		USE
+		ITEM
+	}
+
+	/** What the current click placed, as far as the hand is concerned. */
+	private enum Placement {
+		NONE,
+		/** A 3D block item: it flies off on its own, the hand holds still. */
+		FLIES,
+		/** A flat item: the hand jabs. */
+		FLAT
 	}
 
 	/** The shake axis leans this far off vertical, towards the outside of the hand. */
 	private static final double SHAKE_LEAN_RADIANS = Math.toRadians(20);
 
-	/** A flight reaches its block in this share of a swing, at the right click pace. */
-	private static final double FLIGHT_SHARE = 0.5;
-	/** A hand pose older than this (ticks) is stale: the hand was not drawn holding an item since. */
-	private static final long HAND_POSE_MAX_AGE = 1;
-
-	final HeldBackBlocks heldBack = new HeldBackBlocks();
 	private final HandAnimations[] hands = {new HandAnimations(), new HandAnimations()};
-	private final List<MorphFlight> flights = new ArrayList<>();
-	/** Each hand's last drawn pose in camera space and the tick it was drawn on: where a flight leaves from. */
-	private final Matrix4f[] handPoses = {new Matrix4f(), new Matrix4f()};
-	private final long[] handPoseTicks = {Long.MIN_VALUE, Long.MIN_VALUE};
 	private long ticks;
-	private HandFrame lastFrame = new HandFrame();
-	private @Nullable PlacedBlock pendingPlacement;
+	private Placement placement = Placement.NONE;
 
 	/** Start of every client tick. */
 	void tick(Minecraft minecraft, @Nullable SwingConfig config) {
@@ -67,42 +54,7 @@ final class SwingAnimator {
 				of(hand).update(ticks, attackHeld, useHeld, vanillaSwinging(minecraft.player, hand));
 			}
 		}
-		tickFlights(config != null);
-		pendingPlacement = null;
-	}
-
-	private void tickFlights(boolean enabled) {
-		if (!enabled) {
-			flights.clear();
-		}
-		for (MorphFlight flight : flights) {
-			flight.tick(ticks);
-		}
-		flights.removeIf(MorphFlight::done);
-		heldBack.revealAllBut(travellingBlocks());
-	}
-
-	/** The item left the hand: the next one (or the bare hand) comes up from below. */
-	private static void dropHand(LocalPlayer player, InteractionHand hand) {
-		HandItemsAccessor items = (HandItemsAccessor) player.firstPersonHandsAndItems();
-		if (hand == InteractionHand.MAIN_HAND) {
-			items.openCrafter$setMainHandHeight(0);
-			items.openCrafter$setOldMainHandHeight(0);
-		} else {
-			items.openCrafter$setOffHandHeight(0);
-			items.openCrafter$setOldOffHandHeight(0);
-		}
-	}
-
-	/** Blocks a flight is still on its way to, which stay held back. */
-	private Set<BlockPos> travellingBlocks() {
-		Set<BlockPos> blocks = new HashSet<>();
-		for (MorphFlight flight : flights) {
-			if (flight.travelling()) {
-				blocks.add(flight.target.pos());
-			}
-		}
-		return blocks;
+		placement = Placement.NONE;
 	}
 
 	void onLeftSwing(SwingConfig config, LocalPlayer player) {
@@ -114,59 +66,24 @@ final class SwingAnimator {
 		}
 	}
 
-	/** After a right click on a block: where a block was placed, or null. */
-	void notePlacement(@Nullable PlacedBlock placed) {
-		pendingPlacement = placed;
+	/** The click placed a block; {@code flies}: its item flew off as a flight rather than being flat. */
+	void notePlacement(boolean flies) {
+		placement = flies ? Placement.FLIES : Placement.FLAT;
 	}
 
+	/** After a right click's swing played. */
 	void onRightSwing(SwingConfig config, LocalPlayer player, RightClick kind) {
 		HandAnimations hand = swungHand(player);
-		PlacedBlock placed = pendingPlacement;
-		pendingPlacement = null;
-		if (config.rightClick != SwingConfig.RightClickAnimation.SMOOTH || kind == RightClick.USE) {
+		Placement placed = placement;
+		placement = Placement.NONE;
+		if (config.rightClick != SwingConfig.RightClickAnimation.SMOOTH || kind == RightClick.ITEM) {
 			hand.playVanilla();
-		} else if (kind == RightClick.PLACE && placed != null) {
-			playPlacement(swungHandId(player), player, placed);
+		} else if (kind == RightClick.BLOCK && placed == Placement.FLIES) {
+			hand.playMorph();
+		} else if (kind == RightClick.BLOCK && placed == Placement.FLAT) {
+			hand.playJab(ticks, RightClickPace.ticks(swingTicks(player)));
 		} else {
 			hand.playShake(ticks);
-		}
-	}
-
-	/** A placed block: a 3D block item flies off and turns into it, a flat item jabs. */
-	private void playPlacement(InteractionHand hand, LocalPlayer player, PlacedBlock placed) {
-		ClientLevel level = Minecraft.getInstance().level;
-		HumanoidArm arm = armOf(player, hand);
-		ItemStackRenderState model = ModelFaces.heldModel(player, placed.held(), arm);
-		BlockMorph.Target morph = level == null ? null : BlockMorph.resolve(model, placed, level);
-		if (morph == null || level == null) {
-			of(hand).playJab(ticks, RightClickPace.ticks(swingTicks(player)));
-			return;
-		}
-		flights.add(new MorphFlight(morph, model, launchPose(hand, arm), ticks, RightClickPace.ticks(swingTicks(player) * FLIGHT_SHARE)));
-		heldBack.holdBack(level, placed);
-		of(hand).playMorph();
-		dropHand(player, hand);
-	}
-
-	/** Where a flight leaves {@code hand}: its last drawn pose, or the resting place when it held nothing. */
-	private Matrix4f launchPose(InteractionHand hand, HumanoidArm arm) {
-		int index = hand.ordinal();
-		boolean fresh = ticks - handPoseTicks[index] <= HAND_POSE_MAX_AGE;
-		return fresh ? new Matrix4f(handPoses[index]) : BlockMorph.restCameraPose(lastFrame, arm);
-	}
-
-	/** Right before a held item is drawn: its pose, for flights launched from this hand. */
-	void noteHandPose(InteractionHand hand, HandFrame frame, PoseStack pose) {
-		lastFrame = frame;
-		handPoses[hand.ordinal()].set(BlockMorph.cameraPose(frame, pose.last().pose()));
-		handPoseTicks[hand.ordinal()] = ticks;
-	}
-
-	/** Draws every flight; call at the end of the hand pass. */
-	void drawFlights(PoseStack pose, SubmitNodeCollector collector, int light, HandFrame frame, float partialTicks) {
-		lastFrame = frame;
-		for (MorphFlight flight : flights) {
-			BlockMorph.draw(pose, collector, light, flight, frame, flight.weight(ticks + partialTicks));
 		}
 	}
 
@@ -207,17 +124,9 @@ final class SwingAnimator {
 		pose.rotateDegrees(Axis.XP, animations.shake.tilt(now));
 	}
 
-	private static HumanoidArm armOf(LocalPlayer player, InteractionHand hand) {
-		return hand == InteractionHand.MAIN_HAND ? player.getMainArm() : player.getMainArm().getOpposite();
-	}
-
-	private static InteractionHand swungHandId(LivingEntity player) {
-		LivingEntity.SwingDescription swing = player.getCurrentSwing();
-		return swing == null ? InteractionHand.MAIN_HAND : swing.hand();
-	}
-
 	private HandAnimations swungHand(LivingEntity player) {
-		return of(swungHandId(player));
+		LivingEntity.SwingDescription swing = player.getCurrentSwing();
+		return of(swing == null ? InteractionHand.MAIN_HAND : swing.hand());
 	}
 
 	private static boolean vanillaSwinging(@Nullable LocalPlayer player, InteractionHand hand) {

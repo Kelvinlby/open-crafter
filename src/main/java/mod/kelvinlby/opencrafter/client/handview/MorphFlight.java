@@ -42,6 +42,11 @@ final class MorphFlight {
 		}
 	}
 
+	/** Stops at once (it left the screen or its block is out of sight): the block shows up. */
+	void end() {
+		phase = Phase.DONE;
+	}
+
 	boolean travelling() {
 		return phase == Phase.TRAVEL;
 	}

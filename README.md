@@ -62,9 +62,10 @@ module and adds per-click swing animations:
 - General: server rotations, no rotation delay, hide empty hand, skip swapping animation
 - Swing Animation: *Left Click* (Vanilla / **Stub**: a short jab to 3–5 % of the swing that
   trembles while held), *Right Click* (Vanilla / **Smooth**: food slides from the hand to the
-  middle and eases back when you stop, a 3D block item turns into the placed block (its place,
-  size, shape and facing), which shows up once it arrives, while a flat one (torch, rail, flower)
-  swings to 5 % and back, using an entity or block
+  middle and eases back when you stop, a copy of a 3D block item flies from the hand and turns
+  into the placed block (its place, size, shape and facing; one flight per placement, so fast
+  placing has several in the air), which is drawn once it arrives, while a flat one (torch, rail,
+  flower) swings to 5 % and back, using an entity or block
   shakes the hand until released), old animations, swing hand, swing duration
 - Main Hand / Off Hand / Arm: scale, position and rotation per axis
 - Eating: disable, offset, scale, bob

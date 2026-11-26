@@ -58,19 +58,24 @@ final class BlockMorph {
 
 	/**
 	 * Draws a flight {@code weight} of the way from the hand to its block. Call at the end of the hand
-	 * pass, with {@code pose} back at the pass's starting pose.
+	 * pass, with {@code pose} back at the pass's starting pose. False (nothing drawn) when it is off screen.
 	 */
-	static void draw(PoseStack pose, SubmitNodeCollector collector, int light, MorphFlight flight, HandFrame frame, float weight) {
+	static boolean draw(PoseStack pose, SubmitNodeCollector collector, int light, MorphFlight flight, HandFrame frame, float weight) {
 		Matrix4f display = displayTransform(flight.model);
 		Matrix4f fov = HandSpace.fovCorrection();
 		Target target = flight.target;
 		Matrix4f fromCamera = new Matrix4f(flight.from).mul(display);
 		Matrix4f toCamera = frame.bob().mul(HandSpace.viewRotation()).translate(HandSpace.offsetFromEye(target.pos())).mul(target.modelToBlock());
-		Matrix4f placed = new Matrix4f(frame.modelView()).invert().mul(fov).mul(PoseBlend.blend(fromCamera, toCamera, weight, target.centre()));
+		Matrix4f inCamera = PoseBlend.blend(fromCamera, toCamera, weight, target.centre());
+		if (!HandSpace.onScreen(inCamera.transformPosition(new Vector3f(target.centre())))) {
+			return false;
+		}
+		Matrix4f placed = new Matrix4f(frame.modelView()).invert().mul(fov).mul(inCamera);
 		pose.pushPose();
 		pose.mulPose(new Matrix4f(pose.last().pose()).invert().mul(placed).mul(display.invert()));
 		flight.model.submit(pose, collector, light, OverlayTexture.NO_OVERLAY, 0);
 		pose.popPose();
+		return true;
 	}
 
 	/** A hand pose (before the item's display transform) in camera space as the world draws it. */
