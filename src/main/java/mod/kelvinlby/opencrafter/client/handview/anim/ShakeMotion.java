@@ -7,7 +7,7 @@ package mod.kelvinlby.opencrafter.client.handview.anim;
 public final class ShakeMotion {
 	private static final double RISE_TICKS = 2;
 	private static final double FALL_TICKS = 3;
-	private static final double PERIOD_TICKS = 3;
+	private static final double PERIOD_TICKS = 4;
 	private static final double AMPLITUDE = 0.07;
 	private static final double TILT_DEGREES = 6;
 

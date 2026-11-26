@@ -39,11 +39,11 @@ final class SwingAnimator {
 		ticks++;
 		boolean attackHeld = minecraft.options.keyAttack.isDown();
 		boolean useHeld = minecraft.options.keyUse.isDown();
-		for (HandAnimations hand : hands) {
+		for (InteractionHand hand : InteractionHand.values()) {
 			if (config == null) {
-				hand.playVanilla();
+				of(hand).playVanilla();
 			} else {
-				hand.update(ticks, attackHeld, useHeld);
+				of(hand).update(ticks, attackHeld, useHeld, vanillaSwinging(minecraft.player, hand));
 			}
 		}
 		pendingPlacement = null;
@@ -127,6 +127,11 @@ final class SwingAnimator {
 	private HandAnimations swungHand(LivingEntity player) {
 		LivingEntity.SwingDescription swing = player.getCurrentSwing();
 		return of(swing == null ? InteractionHand.MAIN_HAND : swing.hand());
+	}
+
+	private static boolean vanillaSwinging(@Nullable LocalPlayer player, InteractionHand hand) {
+		LivingEntity.SwingDescription swing = player == null ? null : player.getCurrentSwing();
+		return swing != null && swing.hand() == hand;
 	}
 
 	private static int swingTicks(LivingEntity player) {

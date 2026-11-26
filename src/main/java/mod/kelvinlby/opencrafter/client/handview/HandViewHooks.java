@@ -3,6 +3,7 @@ package mod.kelvinlby.opencrafter.client.handview;
 import com.mojang.blaze3d.vertex.PoseStack;
 import mod.kelvinlby.opencrafter.client.handview.anim.EatCurve;
 import mod.kelvinlby.opencrafter.core.config.handview.HandViewConfig;
+import mod.kelvinlby.opencrafter.core.config.handview.SwingConfig;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.client.renderer.entity.state.AvatarRenderState;
@@ -170,14 +171,18 @@ public final class HandViewHooks {
 		return config != null && config.skipSwapping;
 	}
 
-	/** The main hand's height step this tick: 1.8's (always raised) or instant, else vanilla's. */
+	/**
+	 * The main hand's height step this tick: always raised (1.8's look, and the stub's, which must not dip with the
+	 * attack cooldown) or instant, else vanilla's.
+	 */
 	public static float mainHeightStep(float step, LocalPlayer player, ItemStack shownItem, float height) {
 		HandViewConfig config = active();
-		if (config == null || (!config.skipSwapping && !config.swing.oldAnimations)) {
+		boolean ignoresCooldown = config != null && (config.swing.oldAnimations || config.swing.leftClick == SwingConfig.LeftClickAnimation.STUB);
+		if (config == null || (!config.skipSwapping && !ignoresCooldown)) {
 			return step;
 		}
 		float swap = player.getItemSwapScale(1.0F);
-		float raised = config.swing.oldAnimations ? 1 : swap * swap * swap;
+		float raised = ignoresCooldown ? 1 : swap * swap * swap;
 		boolean same = shownItem == player.getMainHandItem() || config.skipSwapping;
 		return (same ? raised : 0) - height;
 	}

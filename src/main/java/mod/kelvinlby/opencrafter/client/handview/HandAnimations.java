@@ -50,19 +50,22 @@ final class HandAnimations {
 		take(Owner.VANILLA);
 	}
 
-	void update(double now, boolean attackHeld, boolean useHeld) {
+	/** Once per tick; {@code vanillaSwinging}: vanilla's own swing of this hand is still running underneath. */
+	void update(double now, boolean attackHeld, boolean useHeld, boolean vanillaSwinging) {
 		stub.update(now, attackHeld);
 		shake.update(now, useHeld);
 		reach.update(now);
-		if (!ownerActive()) {
+		if (!ownerActive(vanillaSwinging)) {
 			owner = Owner.VANILLA;
 		}
 	}
 
-	private boolean ownerActive() {
+	// A finished stub keeps the hand (at progress 0) until the vanilla swing it replaced has ended too,
+	// so a short click never hands over to that swing midway
+	private boolean ownerActive(boolean vanillaSwinging) {
 		return switch (owner) {
 			case VANILLA -> true;
-			case STUB -> stub.active();
+			case STUB -> stub.active() || vanillaSwinging;
 			case SHAKE -> shake.active();
 			case REACH -> reach.active();
 		};
