@@ -6,14 +6,17 @@ import mod.kelvinlby.opencrafter.client.handview.anim.CubeRotation;
 import mod.kelvinlby.opencrafter.client.handview.anim.PoseBlend;
 import mod.kelvinlby.opencrafter.mixin.handview.LayerRenderStateAccessor;
 import net.minecraft.client.multiplayer.ClientLevel;
+import net.minecraft.client.renderer.SubmitNodeCollector;
 import net.minecraft.client.renderer.item.ItemStackRenderState;
+import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.client.resources.model.geometry.BakedQuad;
 import net.minecraft.core.BlockPos;
-import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.shapes.VoxelShape;
+import net.minecraft.world.entity.HumanoidArm;
 import org.joml.Matrix4f;
+import org.joml.Matrix4fc;
 import org.joml.Vector3f;
 import org.jspecify.annotations.Nullable;
 
@@ -24,12 +27,14 @@ import java.util.List;
  * in place and in shape. Works for items drawn as block geometry; flat icons jab instead.
  */
 final class BlockMorph {
-	/**
-	 * Where the held model ends up (its model space mapped into the placed block's cell), its centre,
-	 * and the stack drawn meanwhile (as it was before the click, so the last block of a stack shows too).
-	 */
-	record Target(BlockPos pos, Matrix4f modelToBlock, Vector3f centre, ItemStack item) {
+	/** Where the held model ends up (its model space mapped into the placed block's cell), and its centre. */
+	record Target(BlockPos pos, Matrix4f modelToBlock, Vector3f centre) {
 	}
+
+	/** Where vanilla holds an item ({@code applyItemArmTransform}, item fully raised). */
+	private static final float REST_X = 0.56F;
+	private static final float REST_Y = -0.52F;
+	private static final float REST_Z = -0.72F;
 
 	private BlockMorph() {
 	}
@@ -45,25 +50,38 @@ final class BlockMorph {
 		Vector3f centre = model.centre();
 		Matrix4f turn = CubeRotation.find(ModelFaces.faces(itemQuads), ModelFaces.faces(blockQuads));
 		if (turn != null) {
-			return new Target(placed.pos(), turn, centre, placed.held());
+			return new Target(placed.pos(), turn, centre);
 		}
 		Box added = Box.added(outline(placed.state(), level, placed.pos()), outline(placed.before(), level, placed.pos()));
-		return added.isEmpty() ? null : new Target(placed.pos(), model.fitInto(added), centre, placed.held());
+		return added.isEmpty() ? null : new Target(placed.pos(), model.fitInto(added), centre);
 	}
 
 	/**
-	 * Moves the item's pose {@code weight} of the way to the target; call right before the item is drawn.
-	 * {@code frame}: the hand pass's frame when it began (its starting pose and model-view matrix), which
-	 * differs between vanilla and shader mods such as Iris.
+	 * Draws a flight {@code weight} of the way from the hand to its block. Call at the end of the hand
+	 * pass, with {@code pose} back at the pass's starting pose.
 	 */
-	static void apply(PoseStack pose, ItemStackRenderState item, Target target, HandFrame frame, float weight) {
-		Matrix4f display = displayTransform(item);
-		Matrix4f current = new Matrix4f(pose.last().pose());
+	static void draw(PoseStack pose, SubmitNodeCollector collector, int light, MorphFlight flight, HandFrame frame, float weight) {
+		Matrix4f display = displayTransform(flight.model);
 		Matrix4f fov = HandSpace.fovCorrection();
-		Matrix4f fromCamera = new Matrix4f(fov).invert().mul(frame.modelView()).mul(current).mul(display);
+		Target target = flight.target;
+		Matrix4f fromCamera = new Matrix4f(flight.from).mul(display);
 		Matrix4f toCamera = frame.bob().mul(HandSpace.viewRotation()).translate(HandSpace.offsetFromEye(target.pos())).mul(target.modelToBlock());
-		Matrix4f blended = new Matrix4f(frame.modelView()).invert().mul(fov).mul(PoseBlend.blend(fromCamera, toCamera, weight, target.centre()));
-		pose.mulPose(current.invert().mul(blended).mul(display.invert()));
+		Matrix4f placed = new Matrix4f(frame.modelView()).invert().mul(fov).mul(PoseBlend.blend(fromCamera, toCamera, weight, target.centre()));
+		pose.pushPose();
+		pose.mulPose(new Matrix4f(pose.last().pose()).invert().mul(placed).mul(display.invert()));
+		flight.model.submit(pose, collector, light, OverlayTexture.NO_OVERLAY, 0);
+		pose.popPose();
+	}
+
+	/** A hand pose (before the item's display transform) in camera space as the world draws it. */
+	static Matrix4f cameraPose(HandFrame frame, Matrix4fc handPose) {
+		return HandSpace.fovCorrection().invert().mul(frame.modelView()).mul(handPose);
+	}
+
+	/** Where vanilla holds an item by {@code arm}, in camera space; for a flight from an empty hand. */
+	static Matrix4f restCameraPose(HandFrame frame, HumanoidArm arm) {
+		float side = arm == HumanoidArm.RIGHT ? 1 : -1;
+		return cameraPose(frame, frame.pose().translate(side * REST_X, REST_Y, REST_Z));
 	}
 
 	private static Matrix4f displayTransform(ItemStackRenderState item) {

@@ -1,6 +1,5 @@
 package mod.kelvinlby.opencrafter.mixin.handview;
 
-import com.llamalad7.mixinextras.injector.ModifyExpressionValue;
 import com.llamalad7.mixinextras.injector.ModifyReturnValue;
 import com.llamalad7.mixinextras.sugar.Local;
 import mod.kelvinlby.opencrafter.client.handview.HandViewHooks;
@@ -42,19 +41,6 @@ abstract class HandItemsMixin {
 	@ModifyArg(method = "tick", at = @At(value = "INVOKE", target = "Lnet/minecraft/util/Mth;clamp(FFF)F", ordinal = 3), index = 0)
 	private float openCrafter$offHeight(float step) {
 		return HandViewHooks.offHeightStep(step, offHandHeight);
-	}
-
-	// While a placed block's item morphs into the block, the hand keeps drawing it (also the last one of a stack)
-	@ModifyExpressionValue(method = "extractRenderState", at = @At(value = "FIELD",
-		target = "Lnet/minecraft/client/player/FirstPersonHandsAndItems;mainHandItem:Lnet/minecraft/world/item/ItemStack;", ordinal = 0))
-	private ItemStack openCrafter$shownMain(ItemStack shown) {
-		return HandViewHooks.shownItem(InteractionHand.MAIN_HAND, shown);
-	}
-
-	@ModifyExpressionValue(method = "extractRenderState", at = @At(value = "FIELD",
-		target = "Lnet/minecraft/client/player/FirstPersonHandsAndItems;offHandItem:Lnet/minecraft/world/item/ItemStack;", ordinal = 0))
-	private ItemStack openCrafter$shownOff(ItemStack shown) {
-		return HandViewHooks.shownItem(InteractionHand.OFF_HAND, shown);
 	}
 
 	@Inject(method = "itemUsed", at = @At("HEAD"), cancellable = true)

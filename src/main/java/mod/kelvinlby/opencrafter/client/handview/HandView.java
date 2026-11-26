@@ -9,8 +9,6 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.phys.BlockHitResult;
 import org.jspecify.annotations.Nullable;
 
-import java.util.Set;
-
 /** The hand view feature's state: its settings and the per-tick trackers the render hooks read. */
 final class HandView {
 	final SwingAnimator swings = new SwingAnimator();
@@ -46,8 +44,6 @@ final class HandView {
 	}
 
 	void beforeUseItemOn(ClientLevel level, Player player, InteractionHand hand, BlockHitResult hit) {
-		// A new click sees the world as it really is
-		swings.heldBack.revealAllBut(Set.of());
 		placement = PlacementProbe.before(level, player.getItemInHand(hand), hit);
 	}
 

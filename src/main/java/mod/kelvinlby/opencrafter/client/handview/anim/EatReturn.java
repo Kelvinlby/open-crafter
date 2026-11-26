@@ -5,7 +5,7 @@ package mod.kelvinlby.opencrafter.client.handview.anim;
  * and eases down to rest instead of vanilla's jump.
  */
 public final class EatReturn {
-	public static final double RETURN_TICKS = 5;
+	public static final double RETURN_TICKS = RightClickPace.ticks(5);
 
 	private double start = Double.NEGATIVE_INFINITY;
 	private double level;

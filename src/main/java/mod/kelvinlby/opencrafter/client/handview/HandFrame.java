@@ -19,6 +19,11 @@ final class HandFrame {
 		modelView.set(RenderSystem.getModelViewMatrixCopy());
 	}
 
+	/** The pose the pass started from. */
+	Matrix4f pose() {
+		return new Matrix4f(pose);
+	}
+
 	/** Hand pose space to camera space. */
 	Matrix4f modelView() {
 		return new Matrix4f(modelView);

@@ -37,6 +37,12 @@ abstract class HandRendererMixin {
 		HandViewHooks.beginHands(partialTicks, poseStack);
 	}
 
+	@Inject(method = "submitHandsWithItems", at = @At("TAIL"))
+	private void openCrafter$endHands(float partialTicks, PoseStack poseStack, SubmitNodeCollector collector, PlayerRenderState player,
+		FirstPersonHandsAndItemsRenderState hands, CallbackInfo ci) {
+		HandViewHooks.endHands(poseStack, collector, player);
+	}
+
 	// The hands' lag behind turns: (view - bob) * 0.1 about X, then Y
 	@ModifyArg(method = "submitHandsWithItems", at = @At(value = "INVOKE", target = "Lcom/mojang/blaze3d/vertex/PoseStack;rotateDegrees(Lcom/mojang/math/Axis;F)V", ordinal = 0), index = 1)
 	private float openCrafter$pitchDelay(float degrees) {

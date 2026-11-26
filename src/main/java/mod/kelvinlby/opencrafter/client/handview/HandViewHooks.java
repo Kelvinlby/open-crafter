@@ -6,11 +6,11 @@ import mod.kelvinlby.opencrafter.core.config.handview.HandViewConfig;
 import mod.kelvinlby.opencrafter.core.config.handview.SwingConfig;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.client.renderer.SubmitNodeCollector;
 import net.minecraft.client.renderer.item.ItemStackRenderState;
 import net.minecraft.client.renderer.entity.state.AvatarRenderState;
 import net.minecraft.client.renderer.state.level.FirstPersonHandsAndItemsRenderState;
 import net.minecraft.client.renderer.state.level.PlayerRenderState;
-import net.minecraft.core.BlockPos;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.HumanoidArm;
 import net.minecraft.world.entity.LivingEntity;
@@ -94,7 +94,14 @@ public final class HandViewHooks {
 		if (eat < 1) {
 			HandPose.apply(pose, hand == InteractionHand.MAIN_HAND ? config.mainHand : config.offHand, 1 - eat);
 		}
-		view.swings.applyMorph(pose, hand, item, handFrame, partialTicks);
+		view.swings.noteHandPose(hand, handFrame, pose);
+	}
+
+	/** At the end of the hand pass, with {@code pose} back at its start: draws the blocks flying from the hand. */
+	public static void endHands(PoseStack pose, SubmitNodeCollector collector, PlayerRenderState player) {
+		if (active() != null && player.avatarRenderState != null) {
+			view.swings.drawFlights(pose, collector, player.avatarRenderState.lightCoords, handFrame, partialTicks);
+		}
 	}
 
 	/** Before vanilla places a held item by the arm, in camera space: the way back from eating, unless {@code using}. */
@@ -205,14 +212,9 @@ public final class HandViewHooks {
 		return skipsSwap() ? 1 - height : step;
 	}
 
-	/** The stack a hand draws: the placed block's while the hand morphs into it. */
-	public static ItemStack shownItem(InteractionHand hand, ItemStack shown) {
-		return active() == null ? shown : view.swings.shownItem(hand, shown);
-	}
-
-	/** The server set a block the hand is still morphing into: kept for when it arrives. */
-	public static boolean holdsBackBlock(BlockPos pos, BlockState state) {
-		return view != null && view.swings.heldBack.intercept(pos, state);
+	/** What the chunk mesher draws at a position (any thread): a placed block shows as it was before until its flight lands. */
+	public static BlockState meshedState(int x, int y, int z, BlockState state) {
+		return view == null ? state : view.swings.heldBack.meshed(x, y, z, state);
 	}
 
 	/** Smooth right clicks keep a stack that only changed its count (a bite, a throw) raised instead of re-equipping it. */

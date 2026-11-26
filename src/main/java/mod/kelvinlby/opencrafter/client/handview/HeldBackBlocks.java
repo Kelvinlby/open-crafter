@@ -1,12 +1,11 @@
 package mod.kelvinlby.opencrafter.client.handview;
 
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
-import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.phys.AABB;
-import net.minecraft.world.phys.shapes.VoxelShape;
 import org.jspecify.annotations.Nullable;
 
 import java.util.HashMap;
@@ -14,62 +13,69 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Placed blocks shown as what was there before until the hand's morph reaches them. Only this
- * client's copy of the world changes; whatever the server says about such a block meanwhile is kept
- * and applied when it is revealed, so a refused placement leaves no ghost block.
+ * Placed blocks drawn as what was there before until the hand's morph reaches them. Purely visual:
+ * only the chunk mesher is told the old state (vanilla's and Sodium's); the world, collisions and
+ * clicks keep the real block.
  */
 final class HeldBackBlocks {
-	/** Neighbour shapes stay as they are; the section is redrawn right away. */
-	private static final int FLAGS = Block.UPDATE_CLIENTS | Block.UPDATE_IMMEDIATE | Block.UPDATE_KNOWN_SHAPE;
-	/** A block this close below the player's feet may be what they stand on. */
-	private static final double FOOTING = 0.6;
-
-	private final Map<BlockPos, BlockState> real = new HashMap<>();
+	/** Position → the state the mesher draws there instead; replaced whole, read from mesher threads. */
+	private volatile Map<Long, BlockState> drawnInstead = Map.of();
 	private @Nullable ClientLevel level;
 
-	/** Shows the block as it was before; skipped where hiding would matter for movement or a block entity. */
-	void holdBack(ClientLevel level, LocalPlayer player, PlacedBlock placed) {
+	/** Draws the placed block as it was before; skipped when a block entity renderer would draw it anyway. */
+	void holdBack(ClientLevel level, PlacedBlock placed) {
 		if (level != this.level) {
-			real.clear();
+			drawnInstead = Map.of();
 			this.level = level;
 		}
-		if (placed.state().hasBlockEntity() || supports(player, level, placed)) {
+		if (drawnByBlockEntity(level, placed.pos())) {
 			return;
 		}
-		real.put(placed.pos(), placed.state());
-		level.setBlock(placed.pos(), placed.before(), FLAGS);
+		Map<Long, BlockState> next = new HashMap<>(drawnInstead);
+		next.put(placed.pos().asLong(), placed.before());
+		drawnInstead = Map.copyOf(next);
+		redraw(level, placed.pos());
 	}
 
-	/** The server set {@code pos} to {@code state}: kept for the reveal if the block is held back. */
-	boolean intercept(BlockPos pos, BlockState state) {
-		if (!real.containsKey(pos)) {
-			return false;
+	/** The state the mesher should draw at a position, given the real one (any thread). */
+	BlockState meshed(int x, int y, int z, BlockState real) {
+		Map<Long, BlockState> instead = drawnInstead;
+		if (instead.isEmpty()) {
+			return real;
 		}
-		real.put(pos.immutable(), state);
-		return true;
+		BlockState state = instead.get(BlockPos.asLong(x, y, z));
+		return state == null ? real : state;
 	}
 
-	/** Reveals every held-back block except those at {@code keep}. */
+	/** Draws every held-back block as it really is again, except those at {@code keep}. */
 	void revealAllBut(Set<BlockPos> keep) {
-		if (level == null || real.isEmpty()) {
+		Map<Long, BlockState> instead = drawnInstead;
+		if (instead.isEmpty() || level == null) {
 			return;
 		}
-		real.entrySet().removeIf(entry -> !keep.contains(entry.getKey()) && reveal(entry.getKey(), entry.getValue()));
+		Map<Long, BlockState> next = new HashMap<>();
+		for (Map.Entry<Long, BlockState> entry : instead.entrySet()) {
+			BlockPos pos = BlockPos.of(entry.getKey());
+			if (keep.contains(pos)) {
+				next.put(entry.getKey(), entry.getValue());
+			}
+		}
+		drawnInstead = Map.copyOf(next);
+		for (Long pos : instead.keySet()) {
+			if (!next.containsKey(pos)) {
+				redraw(level, BlockPos.of(pos));
+			}
+		}
 	}
 
-	private boolean reveal(BlockPos pos, BlockState state) {
-		if (level != null) {
-			level.setBlock(pos, state, FLAGS);
-		}
-		return true;
+	/** Rebuilds the sections around {@code pos} right away (vanilla and Sodium both listen); the world is unchanged. */
+	private static void redraw(ClientLevel level, BlockPos pos) {
+		BlockState state = level.getBlockState(pos);
+		level.sendBlockUpdated(pos, state, state, Block.UPDATE_IMMEDIATE);
 	}
 
-	private static boolean supports(LocalPlayer player, ClientLevel level, PlacedBlock placed) {
-		VoxelShape shape = placed.state().getCollisionShape(level, placed.pos());
-		if (shape.isEmpty()) {
-			return false;
-		}
-		AABB reach = player.getBoundingBox().expandTowards(0, -FOOTING, 0);
-		return shape.bounds().move(placed.pos()).intersects(reach);
+	private static boolean drawnByBlockEntity(ClientLevel level, BlockPos pos) {
+		BlockEntity blockEntity = level.getBlockEntity(pos);
+		return blockEntity != null && Minecraft.getInstance().getBlockEntityRenderDispatcher().getRenderer(blockEntity) != null;
 	}
 }

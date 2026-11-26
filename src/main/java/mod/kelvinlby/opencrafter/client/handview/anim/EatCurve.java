@@ -8,8 +8,8 @@ public final class EatCurve {
 	public static final double VANILLA_EXPONENT = 27;
 	/** Vanilla's bob starts once this much of the use is left. */
 	public static final double BOB_START = 0.8;
-	private static final double SMOOTH_IN_TICKS = 6;
-	private static final double BOB_FADE_TICKS = 3;
+	public static final double SMOOTH_IN_TICKS = RightClickPace.ticks(6);
+	public static final double BOB_FADE_TICKS = RightClickPace.ticks(3);
 
 	private EatCurve() {
 	}

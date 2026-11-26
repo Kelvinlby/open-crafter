@@ -24,18 +24,16 @@ import java.util.List;
 
 /** The faces of a held item's model and of a placed block's model, in block units. */
 final class ModelFaces {
-	private static final ItemStackRenderState HELD = new ItemStackRenderState();
-
 	private ModelFaces() {
 	}
 
-	/** The model {@code stack} is drawn with in first person by {@code arm}; reused, read it before the next call. */
+	/** A new render state with the model {@code stack} is drawn with in first person by {@code arm}. */
 	static ItemStackRenderState heldModel(LocalPlayer player, ItemStack stack, HumanoidArm arm) {
 		Minecraft minecraft = Minecraft.getInstance();
 		ItemDisplayContext context = arm == HumanoidArm.RIGHT ? ItemDisplayContext.FIRST_PERSON_RIGHT_HAND : ItemDisplayContext.FIRST_PERSON_LEFT_HAND;
-		HELD.clear();
-		minecraft.getItemModelResolver().updateForTopItem(HELD, stack, context, minecraft.level, player, player.getId() + context.ordinal());
-		return HELD;
+		ItemStackRenderState model = new ItemStackRenderState();
+		minecraft.getItemModelResolver().updateForTopItem(model, stack, context, minecraft.level, player, player.getId() + context.ordinal());
+		return model;
 	}
 
 	/** Every quad of the held item's layers, in its model space. */

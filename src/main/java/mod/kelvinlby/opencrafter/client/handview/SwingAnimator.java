@@ -2,20 +2,24 @@ package mod.kelvinlby.opencrafter.client.handview;
 
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.math.Axis;
+import mod.kelvinlby.opencrafter.client.handview.anim.RightClickPace;
 import mod.kelvinlby.opencrafter.core.config.handview.SwingConfig;
 import mod.kelvinlby.opencrafter.mixin.handview.HandItemsAccessor;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.client.renderer.SubmitNodeCollector;
 import net.minecraft.client.renderer.item.ItemStackRenderState;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.HumanoidArm;
 import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.item.ItemStack;
+import org.joml.Matrix4f;
 import org.jspecify.annotations.Nullable;
 
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 /**
@@ -36,12 +40,19 @@ final class SwingAnimator {
 	/** The shake axis leans this far off vertical, towards the outside of the hand. */
 	private static final double SHAKE_LEAN_RADIANS = Math.toRadians(20);
 
-	/** A morph reaches the block in this share of a swing. */
-	private static final double MORPH_SHARE = 0.5;
+	/** A flight reaches its block in this share of a swing, at the right click pace. */
+	private static final double FLIGHT_SHARE = 0.5;
+	/** A hand pose older than this (ticks) is stale: the hand was not drawn holding an item since. */
+	private static final long HAND_POSE_MAX_AGE = 1;
 
 	final HeldBackBlocks heldBack = new HeldBackBlocks();
 	private final HandAnimations[] hands = {new HandAnimations(), new HandAnimations()};
+	private final List<MorphFlight> flights = new ArrayList<>();
+	/** Each hand's last drawn pose in camera space and the tick it was drawn on: where a flight leaves from. */
+	private final Matrix4f[] handPoses = {new Matrix4f(), new Matrix4f()};
+	private final long[] handPoseTicks = {Long.MIN_VALUE, Long.MIN_VALUE};
 	private long ticks;
+	private HandFrame lastFrame = new HandFrame();
 	private @Nullable PlacedBlock pendingPlacement;
 
 	/** Start of every client tick. */
@@ -53,19 +64,26 @@ final class SwingAnimator {
 			if (config == null) {
 				of(hand).playVanilla();
 			} else {
-				HandAnimations.MorphEvent event = of(hand).update(ticks, attackHeld, useHeld, vanillaSwinging(minecraft.player, hand));
-				onMorphEvent(minecraft.player, hand, event);
+				of(hand).update(ticks, attackHeld, useHeld, vanillaSwinging(minecraft.player, hand));
 			}
 		}
-		heldBack.revealAllBut(travellingBlocks());
+		tickFlights(config != null);
 		pendingPlacement = null;
 	}
 
-	/** Once the hand has let go of a morphed block, the next item (or the bare hand) comes up from below. */
-	private static void onMorphEvent(@Nullable LocalPlayer player, InteractionHand hand, HandAnimations.MorphEvent event) {
-		if (event != HandAnimations.MorphEvent.SETTLED || player == null) {
-			return;
+	private void tickFlights(boolean enabled) {
+		if (!enabled) {
+			flights.clear();
 		}
+		for (MorphFlight flight : flights) {
+			flight.tick(ticks);
+		}
+		flights.removeIf(MorphFlight::done);
+		heldBack.revealAllBut(travellingBlocks());
+	}
+
+	/** The item left the hand: the next one (or the bare hand) comes up from below. */
+	private static void dropHand(LocalPlayer player, InteractionHand hand) {
 		HandItemsAccessor items = (HandItemsAccessor) player.firstPersonHandsAndItems();
 		if (hand == InteractionHand.MAIN_HAND) {
 			items.openCrafter$setMainHandHeight(0);
@@ -76,22 +94,15 @@ final class SwingAnimator {
 		}
 	}
 
-	/** Blocks a hand is still morphing into, which stay held back. */
+	/** Blocks a flight is still on its way to, which stay held back. */
 	private Set<BlockPos> travellingBlocks() {
 		Set<BlockPos> blocks = new HashSet<>();
-		for (HandAnimations hand : hands) {
-			BlockMorph.Target morph = hand.travellingMorph();
-			if (morph != null) {
-				blocks.add(morph.pos());
+		for (MorphFlight flight : flights) {
+			if (flight.travelling()) {
+				blocks.add(flight.target.pos());
 			}
 		}
 		return blocks;
-	}
-
-	/** The stack {@code hand} draws: the placed one while it morphs into its block, else {@code shown}. */
-	ItemStack shownItem(InteractionHand hand, ItemStack shown) {
-		BlockMorph.Target morph = of(hand).drawnMorph();
-		return morph == null ? shown : morph.item();
 	}
 
 	void onLeftSwing(SwingConfig config, LocalPlayer player) {
@@ -115,22 +126,47 @@ final class SwingAnimator {
 		if (config.rightClick != SwingConfig.RightClickAnimation.SMOOTH || kind == RightClick.USE) {
 			hand.playVanilla();
 		} else if (kind == RightClick.PLACE && placed != null) {
-			playPlacement(hand, player, placed);
+			playPlacement(swungHandId(player), player, placed);
 		} else {
 			hand.playShake(ticks);
 		}
 	}
 
-	/** A placed block: a 3D block item turns into it, a flat item jabs. */
-	private void playPlacement(HandAnimations hand, LocalPlayer player, PlacedBlock placed) {
+	/** A placed block: a 3D block item flies off and turns into it, a flat item jabs. */
+	private void playPlacement(InteractionHand hand, LocalPlayer player, PlacedBlock placed) {
 		ClientLevel level = Minecraft.getInstance().level;
-		HumanoidArm arm = swungArm(player);
-		BlockMorph.Target morph = level == null ? null : BlockMorph.resolve(ModelFaces.heldModel(player, placed.held(), arm), placed, level);
-		if (morph != null && level != null) {
-			hand.playMorph(ticks, morph, swingTicks(player) * MORPH_SHARE);
-			heldBack.holdBack(level, player, placed);
-		} else {
-			hand.playJab(ticks, swingTicks(player));
+		HumanoidArm arm = armOf(player, hand);
+		ItemStackRenderState model = ModelFaces.heldModel(player, placed.held(), arm);
+		BlockMorph.Target morph = level == null ? null : BlockMorph.resolve(model, placed, level);
+		if (morph == null || level == null) {
+			of(hand).playJab(ticks, RightClickPace.ticks(swingTicks(player)));
+			return;
+		}
+		flights.add(new MorphFlight(morph, model, launchPose(hand, arm), ticks, RightClickPace.ticks(swingTicks(player) * FLIGHT_SHARE)));
+		heldBack.holdBack(level, placed);
+		of(hand).playMorph();
+		dropHand(player, hand);
+	}
+
+	/** Where a flight leaves {@code hand}: its last drawn pose, or the resting place when it held nothing. */
+	private Matrix4f launchPose(InteractionHand hand, HumanoidArm arm) {
+		int index = hand.ordinal();
+		boolean fresh = ticks - handPoseTicks[index] <= HAND_POSE_MAX_AGE;
+		return fresh ? new Matrix4f(handPoses[index]) : BlockMorph.restCameraPose(lastFrame, arm);
+	}
+
+	/** Right before a held item is drawn: its pose, for flights launched from this hand. */
+	void noteHandPose(InteractionHand hand, HandFrame frame, PoseStack pose) {
+		lastFrame = frame;
+		handPoses[hand.ordinal()].set(BlockMorph.cameraPose(frame, pose.last().pose()));
+		handPoseTicks[hand.ordinal()] = ticks;
+	}
+
+	/** Draws every flight; call at the end of the hand pass. */
+	void drawFlights(PoseStack pose, SubmitNodeCollector collector, int light, HandFrame frame, float partialTicks) {
+		lastFrame = frame;
+		for (MorphFlight flight : flights) {
+			BlockMorph.draw(pose, collector, light, flight, frame, flight.weight(ticks + partialTicks));
 		}
 	}
 
@@ -160,16 +196,6 @@ final class SwingAnimator {
 		}
 	}
 
-	/** The morph into a placed block; call last, right before the item is drawn. */
-	void applyMorph(PoseStack pose, InteractionHand hand, ItemStackRenderState item, HandFrame frame, float partialTicks) {
-		HandAnimations animations = of(hand);
-		BlockMorph.Target morph = animations.drawnMorph();
-		float weight = animations.travel.weight(ticks + partialTicks);
-		if (morph != null && weight > 0) {
-			BlockMorph.apply(pose, item, morph, frame, weight);
-		}
-	}
-
 	boolean playsCustom(InteractionHand hand) {
 		return of(hand).owner() != HandAnimations.Owner.VANILLA;
 	}
@@ -181,15 +207,17 @@ final class SwingAnimator {
 		pose.rotateDegrees(Axis.XP, animations.shake.tilt(now));
 	}
 
-	private static HumanoidArm swungArm(LocalPlayer player) {
+	private static HumanoidArm armOf(LocalPlayer player, InteractionHand hand) {
+		return hand == InteractionHand.MAIN_HAND ? player.getMainArm() : player.getMainArm().getOpposite();
+	}
+
+	private static InteractionHand swungHandId(LivingEntity player) {
 		LivingEntity.SwingDescription swing = player.getCurrentSwing();
-		boolean main = swing == null || swing.hand() == InteractionHand.MAIN_HAND;
-		return main ? player.getMainArm() : player.getMainArm().getOpposite();
+		return swing == null ? InteractionHand.MAIN_HAND : swing.hand();
 	}
 
 	private HandAnimations swungHand(LivingEntity player) {
-		LivingEntity.SwingDescription swing = player.getCurrentSwing();
-		return of(swing == null ? InteractionHand.MAIN_HAND : swing.hand());
+		return of(swungHandId(player));
 	}
 
 	private static boolean vanillaSwinging(@Nullable LocalPlayer player, InteractionHand hand) {
