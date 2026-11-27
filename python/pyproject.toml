@@ -16,6 +16,8 @@ dependencies = [
 [project.optional-dependencies]
 # Reading episodes written by the recording encoder (opencrafter.episode).
 episodes = ["zstandard>=0.22"]
+# Side-by-side RGB / flow-arrow preview videos (python -m opencrafter.flowviz).
+flowviz = ["zstandard>=0.22", "opencv-python-headless>=4.8"]
 
 [tool.setuptools.packages.find]
 include = ["opencrafter*"]

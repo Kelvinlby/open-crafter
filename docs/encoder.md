@@ -126,6 +126,10 @@ for rgb in ep.rgb_frames():            # (H, W, 3) uint8, decoded with the strea
     ...
 ```
 
+To look at the flow, `python -m opencrafter.flowviz <episode> preview.mp4` writes a side-by-side
+video: the RGB on the left, and on the right the same frames with the flow drawn as half-transparent
+arrows on a 24 px grid, coloured by direction (needs `opencv-python-headless`).
+
 ### `.ocs` array streams
 
 `"OCSTREAM1\n"`, u32 header length, header JSON (`width`, `height`, `channels`, `encoding`,
