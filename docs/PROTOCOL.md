@@ -271,7 +271,7 @@ Offsets are relative to the start of the slot.
 |---|---|---|
 | 0 | u64 | `seq`: seqlock counter, **odd while the slot is being written** |
 | 8 | i64 | `frame_index` (producer-defined, e.g. a game frame counter) |
-| 16 | i64 | `capture_nanos` (producer clock, `System.nanoTime` domain) |
+| 16 | i64 | `capture_nanos` (producer clock: the game clock `Util.getNanos()`, i.e. `System.nanoTime` unless a virtual clock drives the game) |
 | 24 | u64 | `commit`: the `commit_seq` of the frame in this slot (0 = none) |
 | 32 | u32 | `stream_count` (≤ 16) |
 | 36 | u32 | `meta_size`: bytes of MessagePack meta (0 = no meta, read it as `{}`) |

@@ -5,6 +5,7 @@ import mod.kelvinlby.opencrafter.client.interaction.Interactions;
 import mod.kelvinlby.opencrafter.client.interaction.event.Aim;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.util.Util;
 
 /**
  * Checks once per tick, after the movement packet went out, whether the server holds a spoofed
@@ -25,7 +26,7 @@ final class ServerAimSampler {
 		}
 		Aim sent = Interactions.sentAim(player);
 		if (SpoofCheck.spoofedAtTickEnd(sent, player)) {
-			targets.holdFrom(new GazeTarget.ServerAim(sent), System.nanoTime());
+			targets.holdFrom(new GazeTarget.ServerAim(sent), Util.getNanos());
 		}
 	}
 }

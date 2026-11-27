@@ -5,6 +5,7 @@ import mod.kelvinlby.opencrafter.api.BackendLifecycle;
 import mod.kelvinlby.opencrafter.api.ModContext;
 import mod.kelvinlby.opencrafter.api.ModModule;
 import mod.kelvinlby.opencrafter.api.frame.FrameAnnotators;
+import mod.kelvinlby.opencrafter.api.frame.FramePublisher;
 import mod.kelvinlby.opencrafter.api.handler.HandlerRegistry;
 import mod.kelvinlby.opencrafter.api.sensor.SensorRegistry;
 import mod.kelvinlby.opencrafter.client.config.SettingsCommand;
@@ -32,6 +33,10 @@ import java.util.concurrent.Executor;
 
 /** Client entrypoint: wires the transport to every feature module and the settings screen. */
 public final class OpenCrafterClient implements ClientModInitializer {
+	/** Entrypoint key for {@link ModModule}s of other mods. */
+	public static final String MODULES_ENTRYPOINT = "open-crafter:modules";
+	/** Entrypoint key for an in-process {@link FramePublisher} that replaces the shared-memory ring. */
+	public static final String FRAMES_ENTRYPOINT = "open-crafter:frames";
 	private static final VisionModule VISION = new VisionModule();
 	private static final List<ModModule> MODULES = List.of(
 		new CoreOpsModule(),
@@ -53,14 +58,32 @@ public final class OpenCrafterClient implements ClientModInitializer {
 		Executor mainThread = task -> Minecraft.getInstance().execute(task);
 		BackendLifecycle lifecycle = new BackendLifecycle();
 		TransportModule transport = TransportModule.start(config.get().transport.copy(), handlers, lifecycle, mainThread);
-		ModContext context = new ModContext(handlers, new SensorRegistry(), transport.events(), lifecycle, transport.frames(),
+		ModContext context = new ModContext(handlers, new SensorRegistry(), transport.events(), lifecycle, framePublisher(transport),
 			new FrameAnnotators(), config, mainThread);
 		MODULES.forEach(module -> module.install(context));
+		extensionModules().forEach(module -> module.install(context));
 		config.onReplace((old, edited) -> reopenTransportIfChanged(transport, old, edited));
 		SettingsScreen.install(config, transport, VISION.control());
 		SettingsCommand.register();
 		ClientLifecycleEvents.CLIENT_STOPPING.register(client -> transport.close());
 		OpenCrafter.LOGGER.info("open-crafter ready with {} ops", handlers.all().size());
+	}
+
+	/**
+	 * Where captured frames go: the shared-memory ring of the transport, unless another mod consumes
+	 * them in-process (entrypoint {@value #FRAMES_ENTRYPOINT}, e.g. an offline dataset recorder).
+	 */
+	private static FramePublisher framePublisher(TransportModule transport) {
+		List<FramePublisher> inProcess = FabricLoader.getInstance().getEntrypoints(FRAMES_ENTRYPOINT, FramePublisher.class);
+		if (inProcess.size() > 1) {
+			throw new IllegalStateException("More than one mod provides " + FRAMES_ENTRYPOINT);
+		}
+		return inProcess.isEmpty() ? transport.frames() : inProcess.getFirst();
+	}
+
+	/** Feature modules other mods add (entrypoint {@value #MODULES_ENTRYPOINT}), installed after the built-in ones. */
+	private static List<ModModule> extensionModules() {
+		return FabricLoader.getInstance().getEntrypoints(MODULES_ENTRYPOINT, ModModule.class);
 	}
 
 	/** Reopens the transport off the main thread (it binds sockets and maps files); backends reconnect. */

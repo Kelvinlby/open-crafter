@@ -6,6 +6,7 @@ import mod.kelvinlby.opencrafter.client.interaction.event.Outcome;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.util.Util;
 import org.jspecify.annotations.Nullable;
 
 import java.util.ArrayList;
@@ -53,7 +54,7 @@ public final class OutcomeResolver {
 	/** End of every client tick: checks again, then times out what waited too long. */
 	public void tick() {
 		checkNow();
-		publishAll(takeExpired(System.nanoTime()));
+		publishAll(takeExpired(Util.getNanos()));
 	}
 
 	private List<Resolved> takeConfirmed(ProbeContext.Base base) {

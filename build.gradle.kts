@@ -69,6 +69,81 @@ tasks.test {
 	systemProperty("opencrafter.projectDir", layout.projectDirectory.asFile.absolutePath)
 }
 
+loom {
+	mods {
+		register("open-crafter") { sourceSet(sourceSets.main.get()) }
+		register("open-crafter-encoder") { sourceSet(encoder) }
+	}
+	runs {
+		// A worker client of the encoder: the mod plus the encoder mod. Started by the `encode` task
+		// (through the launch spec below), one process per recording, each in its own game directory.
+		register("encoderWorker") {
+			client()
+			source(encoder)
+			configName = "Encoder worker"
+			ideConfigGenerated(false)
+			runDir("build/encoder/worker-run")
+		}
+	}
+}
+
+tasks.named<ProcessResources>(encoder.processResourcesTaskName) {
+	val version = version
+	inputs.property("version", version)
+	filesMatching("fabric.mod.json") { expand("version" to version) }
+}
+
+// Writes how to start a worker client (java, JVM arguments, classpath, main class) so the encoder
+// can start many of them itself; Loom only knows how to start one, from Gradle.
+val encoderWorkerLaunch = tasks.register("encoderWorkerLaunch") {
+	description = "Writes the launch spec of an encoder worker client."
+	group = "encoder"
+	val runTask = tasks.named<JavaExec>("runEncoderWorker")
+	// What the run task needs before launching (classes, DLI config, assets), but never the run task itself.
+	dependsOn(encoder.classesTaskName, sourceSets.main.get().classesTaskName, "configureClientLaunch", "downloadAssets")
+	val spec = layout.buildDirectory.file("encoder/worker-launch.json")
+	outputs.file(spec)
+	outputs.upToDateWhen { false }
+	notCompatibleWithConfigurationCache("reads the Loom run task at execution time")
+	doLast {
+		val run = runTask.get()
+		val json = groovy.json.JsonOutput.toJson(mapOf(
+			"java" to run.javaLauncher.get().executablePath.asFile.absolutePath,
+			"jvmArgs" to run.allJvmArgs,
+			"classpath" to run.classpath.files.map { it.absolutePath },
+			"mainClass" to run.mainClass.get(),
+			"args" to run.args,
+			"profileDir" to layout.projectDirectory.dir("run").asFile.absolutePath
+		))
+		spec.get().asFile.writeText(groovy.json.JsonOutput.prettyPrint(json))
+	}
+}
+
+// ./gradlew encode -Pinput=<recordings dir or file> -Poutput=<datasets dir> [-Pworkers=N] [-Pconfig=encoder.json]
+tasks.register<JavaExec>("encode") {
+	description = "Replays packet recordings in parallel headless clients and writes datasets."
+	group = "encoder"
+	dependsOn(encoderWorkerLaunch)
+	classpath = encoder.runtimeClasspath
+	mainClass = "mod.kelvinlby.opencrafter.encoder.pipeline.EncodeMain"
+	workingDir = layout.projectDirectory.asFile
+	maxHeapSize = "2g"
+	notCompatibleWithConfigurationCache("starts worker clients from the Loom run setup")
+	val launch = layout.buildDirectory.file("encoder/worker-launch.json")
+	doFirst {
+		args(listOfNotNull(
+			"--launch", launch.get().asFile.absolutePath,
+			"--input", providers.gradleProperty("input").orNull ?: throw GradleException("Give -Pinput=<recording or folder>"),
+			"--output", providers.gradleProperty("output").orNull ?: throw GradleException("Give -Poutput=<folder>"),
+			providers.gradleProperty("workers").orNull?.let { "--workers=$it" },
+			providers.gradleProperty("config").orNull?.let { "--config=$it" },
+			providers.gradleProperty("profile").orNull?.let { "--profile=$it" },
+			providers.gradleProperty("display").orNull?.let { "--display=$it" },
+			providers.gradleProperty("force").orNull?.let { "--force" }
+		))
+	}
+}
+
 val encoderTests = tasks.register<Test>("encoderTest") {
 	description = "Tests of the recording encoder (not part of the mod)."
 	group = "verification"

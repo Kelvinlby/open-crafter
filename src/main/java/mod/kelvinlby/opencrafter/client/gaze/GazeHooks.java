@@ -4,6 +4,7 @@ import mod.kelvinlby.opencrafter.client.interaction.event.Aim;
 import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.util.Util;
 import org.jspecify.annotations.Nullable;
 
 /** Entry point for the gaze camera mixin; vanilla until {@link GazeModule} is installed. Render thread only. */
@@ -25,7 +26,7 @@ public final class GazeHooks {
 		if (director == null) {
 			return null;
 		}
-		long now = System.nanoTime();
+		long now = Util.getNanos();
 		if (!showsOwnEyes(camera)) {
 			director.outOfView(now);
 			return null;

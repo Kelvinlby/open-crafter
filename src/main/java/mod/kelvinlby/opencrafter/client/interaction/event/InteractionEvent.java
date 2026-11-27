@@ -10,7 +10,7 @@ import org.jspecify.annotations.Nullable;
  * backend, another mod). Immutable; its outcome arrives later through {@link InteractionListener}.
  *
  * @param id               increasing per game session, starting at 1
- * @param nanos            {@code System.nanoTime()} when the action was sent (comparable with frame {@code capture_nanos})
+ * @param nanos            {@code Util.getNanos()}, the game clock when the action was sent (comparable with frame {@code capture_nanos})
  * @param frameBefore      index of the last frame captured before the action, or -1
  * @param hand             the hand acting, null for actions without one (breaking, stabbing)
  * @param held             copy of what the hand held right before the action (empty when none)

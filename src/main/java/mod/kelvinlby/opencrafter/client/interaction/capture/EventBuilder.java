@@ -7,6 +7,7 @@ import mod.kelvinlby.opencrafter.client.interaction.outcome.PreAction;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.util.Util;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.phys.BlockHitResult;
@@ -25,7 +26,7 @@ final class EventBuilder {
 		ItemStack held = action.hand() == null ? ItemStack.EMPTY : before.held(action.hand());
 		return new InteractionEvent(
 			id,
-			System.nanoTime(),
+			Util.getNanos(),
 			frameBefore,
 			action.kind(),
 			action.hand(),

@@ -58,6 +58,11 @@ public final class McrecHeader {
 		return longOr("sessionStartEpochMillis", 0L);
 	}
 
+	/** The player's latency when recording started, in milliseconds; 0 if unknown. */
+	public int pingMillis() {
+		return Math.max(0, intOr("pingMillis", 0));
+	}
+
 	public int codecId() {
 		return intOr("codecId", McrecFormat.CODEC_NONE);
 	}

@@ -6,6 +6,7 @@ import mod.kelvinlby.opencrafter.core.config.ConfigStore;
 import mod.kelvinlby.opencrafter.core.config.InventoryViewConfig;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.InventoryScreen;
+import net.minecraft.util.Util;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -97,6 +98,6 @@ final class BackpackFlight {
 	}
 
 	private static double now() {
-		return System.nanoTime() / NANOS_PER_TICK;
+		return Util.getNanos() / NANOS_PER_TICK;
 	}
 }

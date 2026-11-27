@@ -6,6 +6,7 @@ import mod.kelvinlby.opencrafter.client.interaction.event.InteractionListener;
 import mod.kelvinlby.opencrafter.client.interaction.event.Outcome;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.util.Util;
 import net.minecraft.world.phys.Vec3;
 import org.jspecify.annotations.Nullable;
 
@@ -32,7 +33,7 @@ final class ActionGaze implements InteractionListener {
 
 	@Override
 	public void onOutcome(InteractionEvent event, Outcome outcome) {
-		targets.onOutcome(event.id(), System.nanoTime());
+		targets.onOutcome(event.id(), Util.getNanos());
 	}
 
 	private static @Nullable GazeTarget targetFor(InteractionEvent event, LocalPlayer player) {

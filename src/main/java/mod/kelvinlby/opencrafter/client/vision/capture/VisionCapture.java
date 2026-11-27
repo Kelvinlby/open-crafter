@@ -12,6 +12,7 @@ import mod.kelvinlby.opencrafter.client.vision.VisionStream;
 import mod.kelvinlby.opencrafter.client.vision.gpu.RgbCapturePass;
 import mod.kelvinlby.opencrafter.client.vision.rate.FramePacer;
 import net.minecraft.client.Minecraft;
+import net.minecraft.util.Util;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -72,7 +73,7 @@ public final class VisionCapture {
 		if (snapshot.streams().isEmpty() || !publisher.hasReaders() || !Minecraft.getInstance().isGameLoadFinished()) {
 			return null;
 		}
-		long now = System.nanoTime();
+		long now = Util.getNanos();
 		if (!pacer.isDue(snapshot.rateMode(), snapshot.fixedHz(), clientTicks, now)) {
 			return null;
 		}
@@ -92,7 +93,7 @@ public final class VisionCapture {
 		GpuTextureView color = mainTarget.getColorTextureView();
 		int width = mainTarget.width;
 		int height = mainTarget.height;
-		ReadbackSlot slot = color == null ? null : readbacks.acquire(current.settings().streams(), width, height);
+		ReadbackSlot slot = color == null ? null : acquireReadback(current.settings(), width, height);
 		if (slot == null) {
 			stats.onDroppedNoReadback();
 			flow.onFrameDropped();
@@ -110,6 +111,17 @@ public final class VisionCapture {
 		}
 		stats.onCaptured(width, height);
 		stats.setBackend(slot.meta().backend());
+	}
+
+	/** A free readback slot; a lossless consumer waits for the GPU rather than losing the frame. */
+	private @Nullable ReadbackSlot acquireReadback(VisionSettings.Snapshot snapshot, int width, int height) {
+		ReadbackSlot slot = readbacks.acquire(snapshot.streams(), width, height);
+		if (slot == null && publisher.lossless()) {
+			readbacks.awaitInFlight();
+			readbacks.drainReady(ready -> FramePublishing.publish(ready, publisher, stats));
+			slot = readbacks.acquire(snapshot.streams(), width, height);
+		}
+		return slot;
 	}
 
 	private static void copyFlow(VisionSettings.Snapshot snapshot, ReadbackSlot slot, FlowStage.Output output) {

@@ -50,7 +50,7 @@ and the fixed rate, and shows the status map as it was when the screen opened.
 
 ## Frame meta
 
-`frame_index`, `capture_nanos` (`System.nanoTime()` at the start of the captured frame),
+`frame_index`, `capture_nanos` (`Util.getNanos()`, the game clock, at the start of the captured frame),
 `client_tick` (client ticks since start), `game_time` (level game time), `partial_tick`,
 `level_rendered`, `camera` {`x`,`y`,`z`,`yaw`,`pitch`} (as rendered, interpolated),
 `width`, `height`, `backend` (`OpenGL` / `Vulkan`), `shader_pack_in_use`,

@@ -7,6 +7,7 @@ import mod.kelvinlby.opencrafter.client.interaction.event.Aim;
 import mod.kelvinlby.opencrafter.core.config.ConfigStore;
 import mod.kelvinlby.opencrafter.core.config.GazeConfig;
 import net.minecraft.util.Mth;
+import net.minecraft.util.Util;
 import net.minecraft.world.phys.Vec3;
 import org.jspecify.annotations.Nullable;
 
@@ -22,7 +23,7 @@ final class GazeDirector {
 	private final ConfigStore config;
 	private final HeldTarget<GazeTarget> targets;
 	private final GazeOffset offset = new GazeOffset();
-	private long lastFrameNanos = System.nanoTime();
+	private long lastFrameNanos = Util.getNanos();
 
 	GazeDirector(ConfigStore config, HeldTarget<GazeTarget> targets) {
 		this.config = config;

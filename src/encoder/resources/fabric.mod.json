@@ -1,0 +1,21 @@
+{
+	"schemaVersion": 1,
+	"id": "open-crafter-encoder",
+	"version": "${version}",
+	"name": "Open Crafter recording encoder",
+	"description": "Development tool, never shipped: replays packet recordings headlessly and writes datasets with open-crafter's sensors. Inert unless started by the encoder.",
+	"authors": ["Kelvin"],
+	"license": "GPL-3.0-or-later",
+	"environment": "client",
+	"entrypoints": {
+		"client": ["mod.kelvinlby.opencrafter.encoder.client.EncoderClient"],
+		"open-crafter:modules": ["mod.kelvinlby.opencrafter.encoder.client.EncoderModule"],
+		"open-crafter:frames": ["mod.kelvinlby.opencrafter.encoder.client.EncoderFrames::INSTANCE"]
+	},
+	"mixins": ["open-crafter-encoder.mixins.json"],
+	"depends": {
+		"fabricloader": ">=0.20.1",
+		"minecraft": "~26.3",
+		"open-crafter": "*"
+	}
+}

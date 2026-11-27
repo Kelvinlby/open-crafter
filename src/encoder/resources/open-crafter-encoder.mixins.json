@@ -1,0 +1,21 @@
+{
+	"required": true,
+	"package": "mod.kelvinlby.opencrafter.encoder.mixin",
+	"compatibilityLevel": "JAVA_25",
+	"client": [
+		"AbstractContainerScreenAccessor",
+		"BlockStatePredictionHandlerAccessor",
+		"ClientLevelAccessor",
+		"DeltaTrackerTimerAccessor",
+		"EntityReplayMixin",
+		"FramerateLimitTrackerMixin",
+		"LocalPlayerReplayMixin",
+		"MinecraftAccessor",
+		"MinecraftReplayMixin",
+		"MouseHandlerAccessor",
+		"MultiPlayerGameModeAccessor"
+	],
+	"injectors": {
+		"defaultRequire": 1
+	}
+}

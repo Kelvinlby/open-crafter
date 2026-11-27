@@ -6,6 +6,7 @@ import mod.kelvinlby.opencrafter.client.interaction.event.InteractionTarget;
 import mod.kelvinlby.opencrafter.client.interaction.event.Outcome;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.util.Util;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.state.BlockState;
@@ -40,7 +41,7 @@ final class InteractionMaps {
 	static Map<String, Object> outcome(InteractionEvent event, Outcome outcome) {
 		Map<String, Object> map = new LinkedHashMap<>();
 		map.put("id", event.id());
-		map.put("nanos", System.nanoTime());
+		map.put("nanos", Util.getNanos());
 		map.put("effect", outcome.effect());
 		map.put("reason", outcome.reason());
 		map.put("block_changes", outcome.blockChanges().stream().map(InteractionMaps::blockChange).toList());

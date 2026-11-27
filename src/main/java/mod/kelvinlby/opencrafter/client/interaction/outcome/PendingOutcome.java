@@ -41,7 +41,7 @@ final class PendingOutcome {
 		return !probes.isEmpty();
 	}
 
-	/** The window has run out ({@code System.nanoTime()} clock). */
+	/** The window has run out ({@code Util.getNanos()}, the game clock clock). */
 	boolean expiredAt(long nowNanos) {
 		return nowNanos - deadlineNanos >= 0;
 	}

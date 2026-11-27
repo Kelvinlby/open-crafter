@@ -5,7 +5,7 @@ import org.jspecify.annotations.Nullable;
 /**
  * The latest thing the gaze looks at and how long it stays: until a pending action's outcome plus
  * the hold time, or the hold time from a given moment. A newer target replaces the old one at once
- * (the easing makes that a smooth retarget). Times are {@code System.nanoTime()}.
+ * (the easing makes that a smooth retarget). Times are {@code Util.getNanos()}, the game clock.
  */
 public final class HeldTarget<T> {
 	private static final long NO_ACTION = Long.MIN_VALUE;

@@ -36,7 +36,7 @@ prediction).
 | Key | Type | Meaning |
 |---|---|---|
 | `id` | int | increasing per game session, from 1 |
-| `nanos` | int | `System.nanoTime()` at send; comparable with frame meta `capture_nanos` |
+| `nanos` | int | `Util.getNanos()` (the game clock) at send; comparable with frame meta `capture_nanos` |
 | `frame_before` | int | index of the last frame captured before the action, `-1` if none; the action happened between that frame and the next |
 | `kind` | str | see the table above |
 | `hand` | `"main"` / `"off"` / nil | nil for breaking and stabbing |
