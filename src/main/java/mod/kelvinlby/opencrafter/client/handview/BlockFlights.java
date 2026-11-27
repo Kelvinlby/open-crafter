@@ -3,7 +3,6 @@ package mod.kelvinlby.opencrafter.client.handview;
 import com.mojang.blaze3d.vertex.PoseStack;
 import mod.kelvinlby.opencrafter.client.handview.anim.RightClickPace;
 import mod.kelvinlby.opencrafter.client.vision.VisionHooks;
-import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.client.renderer.SubmitNodeCollector;
@@ -11,11 +10,7 @@ import net.minecraft.client.renderer.item.ItemStackRenderState;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.HumanoidArm;
-import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.phys.BlockHitResult;
-import net.minecraft.world.phys.HitResult;
-import net.minecraft.world.phys.Vec3;
 import org.joml.Matrix4f;
 
 import java.util.ArrayList;
@@ -26,7 +21,8 @@ import java.util.Set;
 /**
  * Placed 3D blocks flying from the hand into place. Every placement launches its own
  * {@link MorphFlight}, independent of the hand's swing and of other flights, and its block is drawn
- * only once the flight lands, leaves the screen or loses sight of the block.
+ * only once the flight lands or leaves the screen. A flight into a block hidden behind others still
+ * runs to the end.
  */
 final class BlockFlights {
 	/** A flight lasts this share of a swing, at the right click pace. */
@@ -67,9 +63,6 @@ final class BlockFlights {
 		boolean waitForRecord = VisionHooks.tracksMotion();
 		for (MorphFlight flight : flights) {
 			flight.tick(ticks, waitForRecord);
-			if (flight.travelling() && outOfSight(flight.target)) {
-				flight.end();
-			}
 		}
 		flights.removeIf(MorphFlight::done);
 		heldBack.revealAllBut(travellingBlocks());
@@ -136,18 +129,6 @@ final class BlockFlights {
 			}
 		}
 		return blocks;
-	}
-
-	/** Something stands between the eye and the block's centre, so a flight into it would show through. */
-	private static boolean outOfSight(BlockMorph.Target target) {
-		Minecraft minecraft = Minecraft.getInstance();
-		if (minecraft.level == null || minecraft.player == null) {
-			return true;
-		}
-		Vec3 eye = minecraft.gameRenderer.mainCamera().position();
-		ClipContext ray = new ClipContext(eye, Vec3.atCenterOf(target.pos()), ClipContext.Block.VISUAL, ClipContext.Fluid.NONE, minecraft.player);
-		BlockHitResult hit = minecraft.level.clip(ray);
-		return hit.getType() == HitResult.Type.BLOCK && !hit.getBlockPos().equals(target.pos());
 	}
 
 	private static HumanoidArm armOf(LocalPlayer player, InteractionHand hand) {

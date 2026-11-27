@@ -69,7 +69,7 @@ final class MorphFlight {
 		return now - arrivedAt >= 1 && (!waitForRecord || settledRecorded || now - arrivedAt >= MAX_SETTLE_TICKS);
 	}
 
-	/** Stops at once (it left the screen or its block is out of sight): the block shows up. */
+	/** Stops at once (it left the screen): the block shows up. */
 	void end() {
 		phase = Phase.DONE;
 	}
