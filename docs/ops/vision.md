@@ -134,7 +134,7 @@ tint the world rather than cover it and are not in the mask.
 | Mined/placed/changed blocks | old surface becomes occluded (depth no longer matches) |
 | HUD, menus, chat that stay put | flow 0, occluded 0 |
 | GUI elements that move: carried item following the mouse, item moved between slots (shift-click, number keys), scrolled lists, hotbar selection frame | exact per element (vertex-to-vertex) |
-| Inventory View's backpack flying in and out (panel, slots, labels, player model) | exact per element; verified in game: every frame's flow equals the panel's measured shift, and the parts that leave the bottom of the window are occluded |
+| Inventory View's backpack flying in and out (panel, slots, labels, player model) | exact per element; verified in game: every frame's flow equals the panel's measured shift, with and without a shader pack (Complementary r5.8.1), and the parts that leave the bottom of the window are occluded |
 | GUI elements that disappear (closing a screen, an item leaving a slot) | occluded |
 | What a moving or newly shown GUI element covers (the slot an item lands on, the world behind a menu that opens) | occluded |
 
