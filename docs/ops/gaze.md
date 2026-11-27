@@ -63,6 +63,22 @@ code; the rotation goes through Minecraft's own camera, so OpenGL, Vulkan and Ir
   twice; use one of them. (A follow-up for Hand View: measure the turn from the rendered camera,
   `gameRenderer.mainCamera().yRot()/xRot()`, instead of the player's rotation; then both compose.)
 
+## Verified
+
+Dev client (OpenGL, llvmpipe, 854×480, ~5–10 fps), ease/hold 1000/1200/1000 ms, frames and
+`status.read` recorded per frame from Python:
+
+- Off-crosshair actions without rotation: the camera turns onto each contact (placement ahead-left
+  yaw 0 → −43°, ahead-right → +44°, break → pitch 20 → 13°) and back to exactly 0/20; the attack on
+  a pig straight ahead (crosshair-aligned) leaves it still. Status `rotation` stays 0/20 throughout.
+- Silent rotation (`debugSpoofRotation`): the camera settles on the spoofed aim (−45.0/29.8)
+  while it is held, then turns back after `holdMillis`.
+- Rapid successive actions: retargets mid-turn without jumps or jitter.
+- Flow during gaze turns: centre flow matches the camera's rotation (pinhole estimate within the
+  cos(pitch) factor); warp error with flow 1.4–2.7 vs 20–25 with zero flow (moving frames).
+- Iris 1.11.7 + Sodium 0.9.2 with Complementary r5.8.1: same behaviour, flow error 2.7 vs 24.5.
+- Not verified: the Vulkan backend (no backend-specific code is involved).
+
 ## Testing aid (dev only)
 
 `-Dopencrafter.interaction.debugSpoofRotation=T` makes the interaction debug driver
