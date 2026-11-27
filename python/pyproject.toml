@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "opencrafter"
-version = "0.1.0"
+version = "0.0.0"  # set by the publish-python workflow at release time
 description = "Backend client for the open-crafter Minecraft mod (control socket + shared-memory frames)"
 readme = "README.md"
 license = "GPL-3.0-or-later"
