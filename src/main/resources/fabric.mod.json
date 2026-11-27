@@ -51,6 +51,10 @@
 		{
 			"config": "open-crafter.iris.mixins.json",
 			"environment": "client"
+		},
+		{
+			"config": "open-crafter.contact.mixins.json",
+			"environment": "client"
 		}
 	],
 	"depends": {

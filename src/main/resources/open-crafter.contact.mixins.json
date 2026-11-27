@@ -1,0 +1,18 @@
+{
+	"required": true,
+	"package": "mod.kelvinlby.opencrafter.mixin.contact",
+	"compatibilityLevel": "JAVA_25",
+	"client": [
+		"EntityExtractContactMixin",
+		"LevelRendererContactMixin",
+		"MultiPlayerGameModeAccessor",
+		"RenderSectionRegionContactMixin",
+		"SodiumLevelSliceContactMixin"
+	],
+	"injectors": {
+		"defaultRequire": 1
+	},
+	"overwrites": {
+		"requireAnnotations": true
+	}
+}

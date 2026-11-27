@@ -31,6 +31,7 @@ Feature areas are `ModModule`s, installed by `client.OpenCrafterClient` with a `
 | Input executors | `client.input` | `open-crafter.input.mixins.json` |
 | Inventory executors | `client.inventory` | `open-crafter.inventory.mixins.json` |
 | Hand View | `client.handview` (pure math in `client.handview.anim`) | `open-crafter.handview.mixins.json` |
+| Contact effects (cracks, break shrink, hinge swing, hit push) | `client.contact` (pure math in `client.contact.anim`) | `open-crafter.contact.mixins.json` |
 | Settings screen | `client.config` | – |
 
 Settings live in `core.config` (`ConfigStore`, one POJO per area). The settings screen edits a
