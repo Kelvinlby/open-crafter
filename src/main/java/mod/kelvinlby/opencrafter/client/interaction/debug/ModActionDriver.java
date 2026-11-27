@@ -7,6 +7,7 @@ import net.minecraft.client.multiplayer.MultiPlayerGameMode;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.network.protocol.game.ServerboundMovePlayerPacket;
 import net.minecraft.network.protocol.game.ServerboundUseItemOnPacket;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.Entity;
@@ -22,6 +23,9 @@ import java.util.Comparator;
  * keyboard: enabled with {@code -Dopencrafter.interaction.debugModActions=N}, every N ticks it runs
  * the next of four actions on blocks diagonally ahead of the player (in view, off the crosshair) or the nearest mob:
  * a game-mode placement, a game-mode attack, a raw placement packet, a game-mode break.
+ * With {@code -Dopencrafter.interaction.debugSpoofRotation=T} it first sends the server a rotation
+ * toward the target (a raw {@code ServerboundMovePlayerPacket.Rot}, the player's own view stays) and
+ * sends the player's own rotation back T ticks later, like a silent-rotation mod.
  */
 public final class ModActionDriver {
 	private static final int SETTLE_TICKS = 100;
@@ -29,17 +33,20 @@ public final class ModActionDriver {
 	private static final double ATTACK_RANGE = 6.0;
 
 	private final int period;
+	private final int spoofTicks;
 	private int ticks;
 	private int step;
+	private int restoreAt = -1;
 
-	private ModActionDriver(int period) {
+	private ModActionDriver(int period, int spoofTicks) {
 		this.period = period;
+		this.spoofTicks = spoofTicks;
 	}
 
 	public static void installIfRequested() {
 		int period = Integer.getInteger("opencrafter.interaction.debugModActions", 0);
 		if (period > 0) {
-			ModActionDriver driver = new ModActionDriver(period);
+			ModActionDriver driver = new ModActionDriver(period, Integer.getInteger("opencrafter.interaction.debugSpoofRotation", 0));
 			ClientTickEvents.END_CLIENT_TICK.register(driver::tick);
 			OpenCrafter.LOGGER.warn("Interaction debug driver enabled: a mod-style action every {} ticks", period);
 		}
@@ -52,9 +59,44 @@ public final class ModActionDriver {
 			return;
 		}
 		ticks++;
+		restoreRotationIfDue(player);
 		if (ticks > SETTLE_TICKS && ticks % period == 0) {
-			runStep(minecraft, player, gameMode, step++ % 4);
+			int which = step++ % 4;
+			spoofRotationIfRequested(minecraft, player, which);
+			runStep(minecraft, player, gameMode, which);
 		}
+	}
+
+	private void spoofRotationIfRequested(Minecraft minecraft, LocalPlayer player, int which) {
+		Vec3 point = spoofTicks > 0 ? aimPoint(minecraft, player, which) : null;
+		if (point != null) {
+			Vec3 to = point.subtract(player.getEyePosition());
+			sendRotation(player, (float) Math.toDegrees(Math.atan2(-to.x, to.z)), (float) Math.toDegrees(Math.atan2(-to.y, to.horizontalDistance())));
+			restoreAt = ticks + spoofTicks;
+		}
+	}
+
+	private void restoreRotationIfDue(LocalPlayer player) {
+		if (restoreAt >= 0 && ticks >= restoreAt) {
+			sendRotation(player, player.getYRot(), player.getXRot());
+			restoreAt = -1;
+		}
+	}
+
+	private static void sendRotation(LocalPlayer player, float yaw, float pitch) {
+		player.connection.send(new ServerboundMovePlayerPacket.Rot(yaw, pitch, player.onGround(), player.horizontalCollision));
+	}
+
+	private static @Nullable Vec3 aimPoint(Minecraft minecraft, LocalPlayer player, int which) {
+		return switch (which) {
+			case 0 -> groundHit(player, 1).getLocation();
+			case 1 -> {
+				Entity target = nearestMob(minecraft, player);
+				yield target == null ? null : target.getBoundingBox().getCenter();
+			}
+			case 2 -> groundHit(player, -1).getLocation();
+			default -> Vec3.atCenterOf(sideBlock(player, 1).above());
+		};
 	}
 
 	private static void runStep(Minecraft minecraft, LocalPlayer player, MultiPlayerGameMode gameMode, int which) {
