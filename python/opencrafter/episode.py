@@ -35,7 +35,7 @@ def _zstd():
     try:
         import zstandard
     except ImportError as e:  # pragma: no cover - depends on the environment
-        raise ImportError("reading episodes needs the 'zstandard' package: pip install zstandard") from e
+        raise ImportError("reading episodes needs zstandard: pip install \"opencrafter[episodes]\"") from e
     return zstandard
 
 

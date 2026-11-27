@@ -113,7 +113,7 @@ right, jump, sneak, sprint at the last tick), `yaw`/`pitch` (sent at the last ti
 `use_item`, `attack`, `interact`, `container_click`, `container_close`, `set_carried_item`, chat,
 commands, ...).
 
-Python (`python/opencrafter/episode.py`, needs `numpy` and `zstandard`):
+Python (`opencrafter.episode`, `pip install "opencrafter[episodes]"`):
 
 ```python
 from opencrafter.episode import Episode
@@ -128,7 +128,7 @@ for rgb in ep.rgb_frames():            # (H, W, 3) uint8, decoded with the strea
 
 To look at the flow, `python -m opencrafter.flowviz <episode> preview.mp4` writes a side-by-side
 video: the RGB on the left, and on the right the same frames with the flow drawn as half-transparent
-arrows on a 24 px grid, coloured by direction (needs `opencv-python-headless`).
+arrows on a 24 px grid, coloured by direction (`pip install "opencrafter[flowviz]"`, and ffmpeg).
 
 ### `.ocs` array streams
 

@@ -6,6 +6,7 @@ open-crafter is a Minecraft mod for the **Fabric** loader, targeting **Minecraft
 
 - Build: `./gradlew build` → jars in `build/libs/`
 - Version defaults to `dev`; override with `./gradlew build -Pversion=1.0.0`. CI builds use the short git hash as the version.
+- Releases: the manual `publish` workflow (`.github/workflows/publish.yml`) takes a version without "v", builds the mod and the Python package (`python/`, PyPI `opencrafter`) with it, publishes to PyPI and creates the GitHub release `v<version>`. `python/pyproject.toml` keeps `version = "0.0.0"`; never bump it by hand.
 
 ## Recording encoder (not part of the mod)
 

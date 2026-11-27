@@ -25,8 +25,12 @@ Works on both OpenGL and Vulkan backends. The game's main thread never blocks on
 
 ## Quick start (backend)
 
+Put the mod jar from [Releases](https://github.com/Kelvinlby/open-crafter/releases) into your
+`mods/` folder (with [Fabric API](https://modrinth.com/mod/fabric-api)), and install the Python
+client from [PyPI](https://pypi.org/project/opencrafter/):
+
 ```bash
-pip install ./python
+pip install opencrafter
 ```
 
 ```python
@@ -93,7 +97,15 @@ It uses only chaining injectors, so it runs alongside Singularity (both hand vie
 ./gradlew build
 ```
 
-Jars land in `build/libs/`. Requires Java 25.
+Jars land in `build/libs/`. Requires Java 25. For the Python client from source:
+`pip install -e "python[episodes,flowviz]"`.
+
+## Release
+
+Run the **publish** workflow (Actions → publish → Run workflow) and enter a version without "v"
+(e.g. `0.2.0`). It builds the mod and the Python package with that version, publishes the package
+to PyPI and creates the GitHub release `v<version>` with the jars and the commits since the
+previous release.
 
 ## License
 

@@ -3,7 +3,7 @@ flow drawn as half-transparent arrows coloured by direction.
 
     python -m opencrafter.flowviz <episode folder> <output.mp4> [--step 24] [--alpha 0.5]
 
-Needs ffmpeg, numpy, zstandard and opencv (``pip install opencv-python-headless``).
+Needs ffmpeg and ``pip install "opencrafter[flowviz]"`` (zstandard, OpenCV).
 
 Flow of frame k is defined on frame k-1's pixel grid (see docs/ops/vision.md): an arrow starts at
 a grid point p, where a surface was in the previous frame, and ends at p + flow, where that surface
@@ -27,7 +27,7 @@ def _cv2():
     try:
         import cv2
     except ImportError as e:  # pragma: no cover - depends on the environment
-        raise ImportError("flowviz needs OpenCV: pip install opencv-python-headless") from e
+        raise ImportError("flowviz needs OpenCV: pip install \"opencrafter[flowviz]\"") from e
     return cv2
 
 
