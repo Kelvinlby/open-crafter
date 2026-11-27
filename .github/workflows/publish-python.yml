@@ -1,0 +1,60 @@
+# Publishes the Python package (python/) to PyPI through a trusted publisher (OIDC, no token).
+#
+# Release: set `version` in python/pyproject.toml, commit, then push a matching tag:
+#   git tag python-v0.1.0 && git push origin python-v0.1.0
+#
+# PyPI trusted publisher settings: owner Kelvinlby, repository open-crafter,
+# workflow publish-python.yml, environment pypi.
+
+name: publish-python
+on:
+  push:
+    tags: ['python-v*']
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: checkout repository
+        uses: actions/checkout@v7
+      - name: setup python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: check the tag matches the package version
+        working-directory: python
+        run: |
+          version=$(python -c "import tomllib; print(tomllib.load(open('pyproject.toml', 'rb'))['project']['version'])")
+          if [ "python-v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::tag $GITHUB_REF_NAME does not match pyproject.toml version $version"
+            exit 1
+          fi
+      - name: build sdist and wheel
+        run: |
+          cp LICENSE python/LICENSE  # ship the licence text; setuptools picks up LICENSE* by itself
+          python -m pip install build twine
+          python -m build python --outdir dist
+          python -m twine check --strict dist/*
+      - name: upload distributions
+        uses: actions/upload-artifact@v7
+        with:
+          name: python-dist
+          path: dist/
+          retention-days: 7
+
+  publish:
+    needs: build
+    runs-on: ubuntu-24.04
+    environment:
+      name: pypi
+      url: https://pypi.org/project/opencrafter/
+    permissions:
+      id-token: write  # trusted publishing
+    steps:
+      - name: download distributions
+        uses: actions/download-artifact@v7
+        with:
+          name: python-dist
+          path: dist/
+      - name: publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1

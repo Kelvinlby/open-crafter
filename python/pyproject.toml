@@ -1,17 +1,27 @@
 [build-system]
-requires = ["setuptools>=68"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "opencrafter"
 version = "0.1.0"
 description = "Backend client for the open-crafter Minecraft mod (control socket + shared-memory frames)"
+readme = "README.md"
 license = "GPL-3.0-or-later"
 requires-python = ">=3.10"
+classifiers = [
+	"Programming Language :: Python :: 3",
+	"Operating System :: OS Independent",
+	"Topic :: Games/Entertainment",
+]
 dependencies = [
 	"msgpack>=1.0",
 	"numpy>=1.24",
 ]
+
+[project.urls]
+Homepage = "https://github.com/Kelvinlby/open-crafter"
+Source = "https://github.com/Kelvinlby/open-crafter/tree/main/python"
 
 [project.optional-dependencies]
 # Reading episodes written by the recording encoder (opencrafter.episode).
