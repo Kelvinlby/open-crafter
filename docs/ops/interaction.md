@@ -85,9 +85,18 @@ walking. If frames are dropped, align by the events' `frame_before` instead.
 ## Testing aid (dev only)
 
 `-Dopencrafter.interaction.debugModActions=N` runs a mod-style action every N ticks, never through
-the crosshair or the keyboard: a game-mode placement ahead-left, a game-mode attack on the
-nearest mob, a raw `ServerboundUseItemOnPacket` placement ahead-right, a game-mode break of the
-block placed ahead-left. Combine with the vision debug scenario (`docs/ops/vision.md`).
-`-Dopencrafter.interaction.debugSpoofRotation=T` additionally sends a raw rotation packet toward
-each target first and the player's own rotation back T ticks later (a silent rotation, see
-`docs/ops/gaze.md`).
+the crosshair or the keyboard. `-Dopencrafter.interaction.debugModSteps=a,b,...` picks the cycle
+(default `place,attack,rawplace,break`):
+
+| Step | Action |
+|---|---|
+| `place` | game-mode placement on the ground ahead-left |
+| `attack` | game-mode attack on the nearest mob |
+| `rawplace` | raw `ServerboundUseItemOnPacket` placement on the ground ahead-right |
+| `break` | game-mode break of the block above the ground ahead-left |
+| `rawbreak` | raw start-destroy there, and the raw stop once the held tool has broken it (survival mining mod) |
+| `use` | game-mode use of that block (toggles a door or lever placed there) |
+
+`-Dopencrafter.interaction.debugSpoofRotation=T` first sends a raw rotation packet toward each
+step's target and the player's own rotation back T ticks later (a silent rotation, see
+`docs/ops/gaze.md`). Combine with the vision debug scenario (`docs/ops/vision.md`).

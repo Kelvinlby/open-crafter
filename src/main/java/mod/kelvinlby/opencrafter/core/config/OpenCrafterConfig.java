@@ -11,4 +11,5 @@ public final class OpenCrafterConfig {
 	public InventoryViewConfig inventoryView = new InventoryViewConfig();
 	public InteractionConfig interaction = new InteractionConfig();
 	public GazeConfig gaze = new GazeConfig();
+	public ContactEffectsConfig contactEffects = new ContactEffectsConfig();
 }

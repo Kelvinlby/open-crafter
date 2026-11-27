@@ -119,6 +119,19 @@ public final class MotionRecorder {
 		popPhase();
 	}
 
+	/**
+	 * World geometry that is an object of its own for a while, such as a block model another module
+	 * animates in place of the real block: recorded under {@code owner} in the world phase it is
+	 * drawn in. {@code settled}: it coincides with the real block this frame, which is what shows
+	 * there once it is gone. Pair with {@link #popOwner}.
+	 */
+	public void beginWorldObject(@Nullable Object owner, boolean settled) {
+		pushOwner(owner);
+		if (frame != null && owner != null && settled) {
+			frame.noteSettled(owner);
+		}
+	}
+
 	public void onEntityExtracted(Object renderState, int entityId) {
 		if (frame != null) {
 			entityIds.put(renderState, entityId);

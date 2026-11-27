@@ -188,6 +188,18 @@ public final class VisionHooks {
 		RECORDER.endHandObject();
 	}
 
+	/**
+	 * World geometry that is an object of its own (a block model animated in place of the real
+	 * block), tracked under {@code owner}'s identity; draw it inside the level's submission.
+	 * {@code settled}: it coincides with the real block now, which takes over its pixels once it is
+	 * gone. True when this frame is recorded for flow. Pair with {@link #endOwner}.
+	 */
+	public static boolean beginWorldObject(Object owner, boolean settled) {
+		boolean recording = RECORDER.isRecording();
+		RECORDER.beginWorldObject(recording ? owner : null, settled);
+		return recording;
+	}
+
 	public static void endOwner() {
 		RECORDER.popOwner();
 	}

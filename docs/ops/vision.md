@@ -70,6 +70,7 @@ Hook points (all in `mixin/vision`, delegating to `client.vision.VisionHooks`):
 | `LevelRenderer.render` around `submitFeatures` | marks world submits |
 | `EntityRenderDispatcher.extractEntity/submit`, `BlockEntityRenderDispatcher.submit`, `FirstPersonHandsAndItemsRenderer.submitHandsWithItems` / `submitArmWithItem` | owner of the submits (entity id, block pos, hand, each hand's arm and held item) |
 | `VisionHooks.beginHandObject` (called by Hand View) | hand-pass objects of their own: each flying placed block, under its own identity |
+| `VisionHooks.beginWorldObject` (called by contact effects) | world objects of their own: a temporary block model drawn in place of a block; once it coincides with the real block and vanishes, its pixels keep the static reprojection |
 | `Simple/TranslucentFeatureRenderPhase.submit` | key each submit node: owner + model root/feature type + ordinal |
 | `RenderTypeFeatureRenderer.prepareGroup/getVertexBuilder` | tee the vertices of keyed submits into the recorder |
 | `QuadParticleGroup`, `QuadParticleRenderState.add`, `QuadParticleFeatureRenderer` | per-particle quads |
@@ -130,6 +131,7 @@ tint the world rather than cover it and are not in the mask.
 | Terrain, any static block geometry, sky | exact (up to float precision of the depth reprojection) |
 | Entities incl. animated limbs, armor, held items, name tags, block entities (chests, signs, pistons), falling blocks, item entities | exact per triangle (vertex-to-vertex correspondence of the recorded meshes) |
 | First-person hand and held item | exact (own projection) |
+| Contact effects' temporary block models (a broken block shrinking, a door or lever swinging), hit entities pushed (`docs/ops/contact-effects.md`) | exact per triangle; a swing hands its pixels over to the real block when it ends |
 | Hand View's placed block flying from the hand into the world | exact per triangle; it carries on the held item when that was the last one, and once on its block its pixels follow the block (the flight stays on the block until a captured frame saw it there) |
 | Quad particles (smoke, flame, cloud, ...) | exact per quad, if the particle wrote depth; translucent particles without depth writes show the surface behind them |
 | Mined/placed/changed blocks | old surface becomes occluded (depth no longer matches) |

@@ -10,6 +10,7 @@ import mod.kelvinlby.opencrafter.api.sensor.SensorRegistry;
 import mod.kelvinlby.opencrafter.client.config.SettingsCommand;
 import mod.kelvinlby.opencrafter.client.config.SettingsScreen;
 import mod.kelvinlby.opencrafter.client.gaze.GazeModule;
+import mod.kelvinlby.opencrafter.client.contact.ContactEffectsModule;
 import mod.kelvinlby.opencrafter.client.handview.HandViewModule;
 import mod.kelvinlby.opencrafter.client.input.InputModule;
 import mod.kelvinlby.opencrafter.client.interaction.InteractionModule;
@@ -41,7 +42,8 @@ public final class OpenCrafterClient implements ClientModInitializer {
 		new InventoryModule(),
 		new HandViewModule(),
 		new InventoryViewModule(),
-		new GazeModule()
+		new GazeModule(),
+		new ContactEffectsModule()
 	);
 
 	@Override

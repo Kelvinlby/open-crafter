@@ -44,6 +44,7 @@ public final class SettingsScreen {
 			.category(HandViewTab.build(draft.handView))
 			.category(InventoryViewTab.build(draft.inventoryView))
 			.category(GazeTab.build(draft.gaze))
+			.category(ContactEffectsTab.build(draft.contactEffects))
 			.category(VisionTab.build(draft.vision, vision))
 			.category(InputTab.build(draft.input))
 			.category(TransportTab.build(draft.transport, transport))
