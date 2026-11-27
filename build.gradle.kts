@@ -109,7 +109,9 @@ val encoderWorkerLaunch = tasks.register("encoderWorkerLaunch") {
 		val run = runTask.get()
 		val json = groovy.json.JsonOutput.toJson(mapOf(
 			"java" to run.javaLauncher.get().executablePath.asFile.absolutePath,
-			"jvmArgs" to run.allJvmArgs,
+			// Loom's @argFile only carries the classpath and is written when the run task executes,
+			// which never happens here: drop it, the worker gets the classpath with -cp instead.
+			"jvmArgs" to run.allJvmArgs.filterNot { it.startsWith("@") },
 			"classpath" to run.classpath.files.map { it.absolutePath },
 			"mainClass" to run.mainClass.get(),
 			"args" to run.args,
