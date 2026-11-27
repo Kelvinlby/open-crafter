@@ -15,11 +15,15 @@ final class HandAnimations {
 		/** A 3D block item placed: it flew off as a {@link MorphFlight}; the hand stays still meanwhile. */
 		MORPH,
 		/** A flat item placed: a small swing out and back. */
-		JAB
+		JAB,
+		/** A swing no action asked for (a mod swinging on its own, a click into the air): short and plain. */
+		NEUTRAL
 	}
 
 	/** How far into the swing the jab goes. */
 	static final float JAB_PROGRESS = 0.05F;
+	/** How far into the swing a neutral swing goes. */
+	static final float NEUTRAL_PROGRESS = 0.08F;
 
 	final StubSwing stub = new StubSwing();
 	final ShakeMotion shake = new ShakeMotion();
@@ -50,6 +54,11 @@ final class HandAnimations {
 		outAndBack.start(now, durationTicks);
 	}
 
+	void playNeutral(double now, double durationTicks) {
+		take(Owner.NEUTRAL);
+		outAndBack.start(now, durationTicks);
+	}
+
 	/** Hands the hand back to vanilla's swing at once. */
 	void playVanilla() {
 		take(Owner.VANILLA);
@@ -73,7 +82,7 @@ final class HandAnimations {
 			case STUB -> stub.active();
 			case SHAKE -> shake.active();
 			case MORPH -> false;
-			case JAB -> outAndBack.active();
+			case JAB, NEUTRAL -> outAndBack.active();
 		};
 	}
 

@@ -31,11 +31,6 @@ final class BlockMorph {
 	record Target(BlockPos pos, Matrix4f modelToBlock, Vector3f centre) {
 	}
 
-	/** Where vanilla holds an item ({@code applyItemArmTransform}, item fully raised). */
-	private static final float REST_X = 0.56F;
-	private static final float REST_Y = -0.52F;
-	private static final float REST_Z = -0.72F;
-
 	private BlockMorph() {
 	}
 
@@ -85,8 +80,7 @@ final class BlockMorph {
 
 	/** Where vanilla holds an item by {@code arm}, in camera space; for a flight from an empty hand. */
 	static Matrix4f restCameraPose(HandFrame frame, HumanoidArm arm) {
-		float side = arm == HumanoidArm.RIGHT ? 1 : -1;
-		return cameraPose(frame, frame.pose().translate(side * REST_X, REST_Y, REST_Z));
+		return cameraPose(frame, frame.pose().translate(HandSpace.itemRest(arm)));
 	}
 
 	private static Matrix4f displayTransform(ItemStackRenderState item) {

@@ -57,9 +57,17 @@ standalone copy wins). Tabs: **Hand View**, **Vision** (push rate), **Input** (h
 **Transport** (endpoint, token). Everything is persisted in `config/open-crafter.json`.
 
 **Hand View** (off until its *Enabled* toggle is on; purely visual) ports Singularity's Hand View
-module and adds per-click swing animations:
+module and adds per-action swing animations. It animates every in-world action of the local
+player, whoever sent it (keyboard, backend, another mod; see [interaction events](docs/ops/interaction.md)):
+attacks, stabs and breaks play the left click animation (mining keeps swinging while the break
+runs), using an entity, a block or an item plays the right click one once it is confirmed (the
+sender swung, or the world changed), and placed blocks fly from the hand also when another mod
+placed them. An action off the crosshair turns the hand toward its contact point while it plays.
+A swing no action asked for (a mod swinging on its own, a click into the air) plays a short
+neutral swing, so it never looks like an action.
 
-- General: server rotations, no rotation delay, hide empty hand, skip swapping animation
+- General: server rotations (hands follow the rotation last sent to the server, read from the
+  outgoing movement packets), no rotation delay, hide empty hand, skip swapping animation
 - Swing Animation: *Left Click* (Vanilla / **Stub**: a short jab to 3–5 % of the swing that
   trembles while held), *Right Click* (Vanilla / **Smooth**: food slides from the hand to the
   middle and eases back when you stop, a copy of a 3D block item flies from the hand and turns
