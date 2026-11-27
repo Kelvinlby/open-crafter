@@ -23,7 +23,7 @@ public final class VisionModule implements ModModule {
 		VisionStats stats = new VisionStats();
 		FramePublisher publisher = DebugDumpPublisher.wrapIfRequested(context.frames());
 		FlowRenderer flow = new FlowRenderer(VisionHooks.recorder());
-		VisionCapture capture = new VisionCapture(settings, publisher, stats, flow);
+		VisionCapture capture = new VisionCapture(settings, publisher, stats, flow, context.annotators());
 		VisionHooks.install(capture, flow);
 		ClientTickEvents.END_CLIENT_TICK.register(client -> capture.onClientTick());
 		context.config().onReplace((old, edited) -> settings.useRate(edited.vision.rateMode, edited.vision.fixedHz));

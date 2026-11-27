@@ -1,6 +1,7 @@
 package mod.kelvinlby.opencrafter.client.vision.capture;
 
 import com.mojang.blaze3d.systems.RenderSystem;
+import mod.kelvinlby.opencrafter.api.frame.FrameAnnotators;
 import mod.kelvinlby.opencrafter.client.vision.compat.ShaderModCompat;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.state.GameRenderState;
@@ -12,7 +13,8 @@ final class FrameMetaCollector {
 	private FrameMetaCollector() {
 	}
 
-	static FrameMeta collect(long frameIndex, long captureNanos, long clientTick, int width, int height, long flowFrom) {
+	static FrameMeta collect(long frameIndex, long captureNanos, long clientTick, int width, int height, long flowFrom,
+		FrameAnnotators annotators) {
 		GameRenderState gameState = Minecraft.getInstance().gameRenderer.gameRenderState();
 		LevelRenderState level = gameState.levelRenderState;
 		CameraRenderState camera = level.cameraRenderState;
@@ -33,7 +35,8 @@ final class FrameMetaCollector {
 			height,
 			backendName(),
 			ShaderModCompat.isShaderPackInUse(),
-			flowFrom
+			flowFrom,
+			annotators.annotate(frameIndex, width, height)
 		);
 	}
 

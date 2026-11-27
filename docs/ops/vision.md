@@ -54,7 +54,8 @@ and the fixed rate, and shows the status map as it was when the screen opened.
 `client_tick` (client ticks since start), `game_time` (level game time), `partial_tick`,
 `level_rendered`, `camera` {`x`,`y`,`z`,`yaw`,`pitch`} (as rendered, interpolated),
 `width`, `height`, `backend` (`OpenGL` / `Vulkan`), `shader_pack_in_use`,
-`flow_from_frame_index`.
+`flow_from_frame_index`, plus entries added by other modules (`interactions`, see
+`docs/ops/interaction.md`).
 
 ## How it works
 

@@ -4,6 +4,7 @@ import com.mojang.blaze3d.pipeline.RenderTarget;
 import com.mojang.renderpearl.api.textures.GpuTexture;
 import com.mojang.renderpearl.api.textures.GpuTextureView;
 import mod.kelvinlby.opencrafter.OpenCrafter;
+import mod.kelvinlby.opencrafter.api.frame.FrameAnnotators;
 import mod.kelvinlby.opencrafter.api.frame.FramePublisher;
 import mod.kelvinlby.opencrafter.client.vision.VisionSettings;
 import mod.kelvinlby.opencrafter.client.vision.VisionStats;
@@ -27,15 +28,17 @@ public final class VisionCapture {
 	private final ReadbackPool readbacks = new ReadbackPool(READBACK_SLOTS);
 	private final RgbCapturePass rgbPass = new RgbCapturePass();
 	private final FlowStage flow;
+	private final FrameAnnotators annotators;
 	private long clientTicks;
 	private long nextFrameIndex;
 	private @Nullable CaptureRequest request;
 
-	public VisionCapture(VisionSettings settings, FramePublisher publisher, VisionStats stats, FlowStage flow) {
+	public VisionCapture(VisionSettings settings, FramePublisher publisher, VisionStats stats, FlowStage flow, FrameAnnotators annotators) {
 		this.settings = settings;
 		this.publisher = publisher;
 		this.stats = stats;
 		this.flow = flow;
+		this.annotators = annotators;
 	}
 
 	public void onClientTick() {
@@ -98,7 +101,7 @@ public final class VisionCapture {
 		long frameIndex = nextFrameIndex++;
 		FlowStage.Output flowOutput = current.settings().wantsFlow() ? flow.render(frameIndex, width, height) : null;
 		long flowFrom = flowOutput == null ? -1L : flowOutput.fromFrameIndex();
-		slot.begin(FrameMetaCollector.collect(frameIndex, current.nanos(), current.clientTick(), width, height, flowFrom));
+		slot.begin(FrameMetaCollector.collect(frameIndex, current.nanos(), current.clientTick(), width, height, flowFrom, annotators));
 		if (current.settings().wants(VisionStream.RGB)) {
 			slot.copy(VisionStream.RGB, rgbPass.run(color, width, height));
 		}

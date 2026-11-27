@@ -9,4 +9,5 @@ public final class OpenCrafterConfig {
 	public InputConfig input = new InputConfig();
 	public HandViewConfig handView = new HandViewConfig();
 	public InventoryViewConfig inventoryView = new InventoryViewConfig();
+	public InteractionConfig interaction = new InteractionConfig();
 }

@@ -4,12 +4,14 @@ import mod.kelvinlby.opencrafter.OpenCrafter;
 import mod.kelvinlby.opencrafter.api.BackendLifecycle;
 import mod.kelvinlby.opencrafter.api.ModContext;
 import mod.kelvinlby.opencrafter.api.ModModule;
+import mod.kelvinlby.opencrafter.api.frame.FrameAnnotators;
 import mod.kelvinlby.opencrafter.api.handler.HandlerRegistry;
 import mod.kelvinlby.opencrafter.api.sensor.SensorRegistry;
 import mod.kelvinlby.opencrafter.client.config.SettingsCommand;
 import mod.kelvinlby.opencrafter.client.config.SettingsScreen;
 import mod.kelvinlby.opencrafter.client.handview.HandViewModule;
 import mod.kelvinlby.opencrafter.client.input.InputModule;
+import mod.kelvinlby.opencrafter.client.interaction.InteractionModule;
 import mod.kelvinlby.opencrafter.client.inventory.InventoryModule;
 import mod.kelvinlby.opencrafter.client.inventoryview.InventoryViewModule;
 import mod.kelvinlby.opencrafter.client.status.StatusModule;
@@ -32,6 +34,7 @@ public final class OpenCrafterClient implements ClientModInitializer {
 	private static final List<ModModule> MODULES = List.of(
 		new CoreOpsModule(),
 		new StatusModule(),
+		new InteractionModule(),
 		VISION,
 		new InputModule(),
 		new InventoryModule(),
@@ -46,7 +49,8 @@ public final class OpenCrafterClient implements ClientModInitializer {
 		Executor mainThread = task -> Minecraft.getInstance().execute(task);
 		BackendLifecycle lifecycle = new BackendLifecycle();
 		TransportModule transport = TransportModule.start(config.get().transport.copy(), handlers, lifecycle, mainThread);
-		ModContext context = new ModContext(handlers, new SensorRegistry(), transport.events(), lifecycle, transport.frames(), config, mainThread);
+		ModContext context = new ModContext(handlers, new SensorRegistry(), transport.events(), lifecycle, transport.frames(),
+			new FrameAnnotators(), config, mainThread);
 		MODULES.forEach(module -> module.install(context));
 		config.onReplace((old, edited) -> reopenTransportIfChanged(transport, old, edited));
 		SettingsScreen.install(config, transport, VISION.control());

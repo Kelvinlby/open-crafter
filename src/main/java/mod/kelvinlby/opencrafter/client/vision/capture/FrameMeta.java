@@ -9,6 +9,7 @@ import java.util.Map;
  *
  * @param shaderPackInUse    an Iris shader pack rendered the world (flow is best effort, see docs/ops/vision.md)
  * @param flowFromFrameIndex index of the frame the flow streams refer to (-1 when none)
+ * @param annotations        entries other modules add through {@code FrameAnnotators}
  */
 public record FrameMeta(
 	long frameIndex,
@@ -26,7 +27,8 @@ public record FrameMeta(
 	int height,
 	String backend,
 	boolean shaderPackInUse,
-	long flowFromFrameIndex
+	long flowFromFrameIndex,
+	Map<String, Object> annotations
 ) {
 	public Map<String, Object> toMap() {
 		Map<String, Object> map = new LinkedHashMap<>();
@@ -48,6 +50,7 @@ public record FrameMeta(
 		map.put("backend", backend);
 		map.put("shader_pack_in_use", shaderPackInUse);
 		map.put("flow_from_frame_index", flowFromFrameIndex);
+		map.putAll(annotations);
 		return map;
 	}
 }

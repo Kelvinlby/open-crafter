@@ -27,6 +27,7 @@ Feature areas are `ModModule`s, installed by `client.OpenCrafterClient` with a `
 | Transport | `transport` | – |
 | Vision (RGB + flow) | `client.vision` | `open-crafter.vision.mixins.json` |
 | Status sensor | `client.status` | – |
+| Interaction events | `client.interaction` | `open-crafter.interaction.mixins.json` |
 | Input executors | `client.input` | `open-crafter.input.mixins.json` |
 | Inventory executors | `client.inventory` | `open-crafter.inventory.mixins.json` |
 | Hand View | `client.handview` (pure math in `client.handview.anim`) | `open-crafter.handview.mixins.json` |
@@ -39,6 +40,9 @@ read the live settings).
 
 Modules register **ops** in the `HandlerRegistry` (op name → handler + `ThreadAffinity`)
 and non-visual sensors in the `SensorRegistry` (sound etc. can be added later the same way).
+Modules add per-frame metadata through `FrameAnnotators` (the vision sensor calls them for each
+captured frame). Client modules that react to the player's in-world actions subscribe to
+`client.interaction.Interactions` instead of hooking clicks themselves.
 Op names are `<area>.<verb>`, e.g. `input.rotate`, `vision.configure`.
 
 ## Threading rules

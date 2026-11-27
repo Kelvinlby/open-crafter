@@ -1,5 +1,6 @@
 package mod.kelvinlby.opencrafter.api;
 
+import mod.kelvinlby.opencrafter.api.frame.FrameAnnotators;
 import mod.kelvinlby.opencrafter.api.frame.FramePublisher;
 import mod.kelvinlby.opencrafter.api.handler.HandlerRegistry;
 import mod.kelvinlby.opencrafter.api.sensor.SensorRegistry;
@@ -14,6 +15,7 @@ public record ModContext(
 	EventSink events,
 	BackendLifecycle lifecycle,
 	FramePublisher frames,
+	FrameAnnotators annotators,
 	ConfigStore config,
 	Executor mainThread
 ) {
