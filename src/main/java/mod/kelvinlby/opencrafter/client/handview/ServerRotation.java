@@ -4,6 +4,8 @@ import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.math.Axis;
 import mod.kelvinlby.opencrafter.client.interaction.Interactions;
 import mod.kelvinlby.opencrafter.client.interaction.event.Aim;
+import net.minecraft.client.Camera;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.util.Mth;
 
@@ -26,13 +28,18 @@ final class ServerRotation {
 		spoofed = false;
 	}
 
-	/** Turns the hand {@code weight} of the way from the player's view to the sent rotation while one is spoofed. */
+	/**
+	 * Turns the hand {@code weight} of the way from the rendered view to the sent rotation while one is
+	 * spoofed. Measured from the rendered camera, not the player's rotation, so a camera that already
+	 * turns toward the sent rotation (Gaze) leaves nothing to add here.
+	 */
 	void apply(PoseStack pose, LocalPlayer player, float weight) {
 		if (!spoofed || weight <= 0) {
 			return;
 		}
 		Aim sent = Interactions.sentAim(player);
-		pose.rotateDegrees(Axis.XP, (player.getXRot() - sent.pitch()) * weight);
-		pose.rotateDegrees(Axis.YP, Mth.wrapDegrees(player.getYRot() - sent.yaw()) * weight);
+		Camera camera = Minecraft.getInstance().gameRenderer.mainCamera();
+		pose.rotateDegrees(Axis.XP, (camera.xRot() - sent.pitch()) * weight);
+		pose.rotateDegrees(Axis.YP, Mth.wrapDegrees(camera.yRot() - sent.yaw()) * weight);
 	}
 }

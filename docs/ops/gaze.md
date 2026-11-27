@@ -58,10 +58,9 @@ code; the rotation goes through Minecraft's own camera, so OpenGL, Vulkan and Ir
 - **Block outline / hit result**: unchanged. `Minecraft.hitResult` is gameplay state (what the
   next own click hits) and is still picked from the player's own rotation; the outline stays on
   that block in the world, which is off-centre while the gaze is turned.
-- **Hand View `serverRotations`**: it turns the hands from the player's view to the sent rotation.
-  With Gaze following the server aim the view is already turned, so enabling both turns the hands
-  twice; use one of them. (A follow-up for Hand View: measure the turn from the rendered camera,
-  `gameRenderer.mainCamera().yRot()/xRot()`, instead of the player's rotation; then both compose.)
+- **Hand View `serverRotations`**: it turns the hands from the rendered camera to the sent
+  rotation, so the two compose: with Gaze following the server aim the camera is already there and
+  the hands add nothing; with Gaze off the hands turn as before.
 
 ## Verified
 
