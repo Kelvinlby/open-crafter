@@ -88,7 +88,6 @@ public final class ReplaySession {
 	private boolean frameDue;
 	private int settleRenders;
 	private int drainFrames;
-	private List<Packet<?>> tickActions = List.of();
 	private @Nullable LocalPlayer lastPlayer;
 
 	private enum Stage { LOADING, PLAYING, DRAINING, FINISHED }
@@ -166,17 +165,18 @@ public final class ReplaySession {
 				tickAction.add(packet);
 			}
 		}
-		tickActions = tickAction;
 		motion.beforeTick(player);
+		if (minecraft.gameMode != null) {
+			actions.replayTick(player, tickAction);
+		}
 	}
 
-	/** Replaces key handling: the recorded actions are re-enacted where the client handles its keys. */
+	/**
+	 * The game's own key handling never runs: input comes from the recording. (Actions are not
+	 * re-enacted there, because the game skips key handling while a screen is open, and a recorded
+	 * client acts in screens too.)
+	 */
 	boolean replaceKeybinds() {
-		LocalPlayer player = minecraft.player;
-		if (stage == Stage.PLAYING && player != null && minecraft.gameMode != null) {
-			actions.replayTick(player, tickActions);
-			tickActions = List.of();
-		}
 		return true;
 	}
 

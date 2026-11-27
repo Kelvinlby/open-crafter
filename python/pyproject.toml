@@ -13,5 +13,9 @@ dependencies = [
 	"numpy>=1.24",
 ]
 
+[project.optional-dependencies]
+# Reading episodes written by the recording encoder (opencrafter.episode).
+episodes = ["zstandard>=0.22"]
+
 [tool.setuptools.packages.find]
 include = ["opencrafter*"]

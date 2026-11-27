@@ -126,19 +126,25 @@ tasks.register<JavaExec>("encode") {
 	dependsOn(encoderWorkerLaunch)
 	classpath = encoder.runtimeClasspath
 	mainClass = "mod.kelvinlby.opencrafter.encoder.pipeline.EncodeMain"
-	workingDir = layout.projectDirectory.asFile
+	// Log4j on the classpath writes logs/ into the working directory: keep it in build/.
+	val runDir = layout.buildDirectory.dir("encoder").get().asFile
+	workingDir = runDir
 	maxHeapSize = "2g"
 	notCompatibleWithConfigurationCache("starts worker clients from the Loom run setup")
 	val launch = layout.buildDirectory.file("encoder/worker-launch.json")
 	doFirst {
+		runDir.mkdirs()
+		fun path(name: String) = providers.gradleProperty(name).orNull?.let { file(it).absolutePath }
 		args(listOfNotNull(
 			"--launch", launch.get().asFile.absolutePath,
-			"--input", providers.gradleProperty("input").orNull ?: throw GradleException("Give -Pinput=<recording or folder>"),
-			"--output", providers.gradleProperty("output").orNull ?: throw GradleException("Give -Poutput=<folder>"),
+			"--input", path("input") ?: throw GradleException("Give -Pinput=<recording or folder>"),
+			"--output", path("output") ?: throw GradleException("Give -Poutput=<folder>"),
 			providers.gradleProperty("workers").orNull?.let { "--workers=$it" },
-			providers.gradleProperty("config").orNull?.let { "--config=$it" },
-			providers.gradleProperty("profile").orNull?.let { "--profile=$it" },
+			path("config")?.let { "--config=$it" },
+			path("profile")?.let { "--profile=$it" },
 			providers.gradleProperty("display").orNull?.let { "--display=$it" },
+			providers.gradleProperty("retries").orNull?.let { "--retries=$it" },
+			providers.gradleProperty("stallMinutes").orNull?.let { "--stall-minutes=$it" },
 			providers.gradleProperty("force").orNull?.let { "--force" }
 		))
 	}

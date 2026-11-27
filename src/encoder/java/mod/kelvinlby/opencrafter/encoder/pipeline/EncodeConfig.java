@@ -45,14 +45,22 @@ public final class EncodeConfig {
 	public boolean serverResourcePacks = false;
 
 	public static final class Rgb {
-		/** ffmpeg video encoder: {@code libsvtav1}, {@code av1_nvenc}, {@code libaom-av1}, {@code libx265}, {@code hevc_nvenc}, {@code ffv1}, ... */
-		public String encoder = "libsvtav1";
-		/** Constant-quality value (CRF / CQ); ignored by lossless encoders. */
-		public int quality = 20;
-		/** Encoder speed preset (SVT-AV1 0-13, x265 names, NVENC p1-p7); empty = encoder default. */
-		public String preset = "6";
-		/** Pixel format handed to the encoder, e.g. {@code yuv420p10le}, {@code yuv444p}, {@code gbrp}. */
-		public String pixelFormat = "yuv420p10le";
+		/**
+		 * ffmpeg video encoder. {@code auto} (default): {@code hevc_nvenc} where an NVIDIA GPU can run it,
+		 * otherwise {@code libx265}. Any other: {@code libsvtav1}, {@code av1_nvenc}, {@code libaom-av1},
+		 * {@code libx264}, {@code ffv1} (lossless), ...
+		 */
+		public String encoder = "auto";
+		/** Constant quality: QP for NVENC, CRF otherwise (lower is better); ignored by lossless encoders. */
+		public int quality = 8;
+		/** Encoder speed preset; empty = a sensible one for the encoder (NVENC p6, x265 fast, SVT-AV1 6). */
+		public String preset = "";
+		/**
+		 * Pixel format handed to the encoder. Minecraft's pixel-art textures carry their detail in
+		 * colour, so 4:2:0 alone costs about 15 dB of RGB PSNR: keep 4:4:4 ({@code yuv444p10le}) unless size
+		 * matters more than colour. {@code bgr0} / {@code gbrp} store RGB as is (with {@code ffv1}: bit-exact).
+		 */
+		public String pixelFormat = "yuv444p10le";
 		/** Container file name (extension picks the muxer). */
 		public String file = "rgb.mkv";
 		/** Extra ffmpeg output arguments, appended verbatim. */

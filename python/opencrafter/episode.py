@@ -124,3 +124,26 @@ class Episode:
     @property
     def video(self) -> Path:
         return self.path / self.info["config"]["rgb"]["file"]
+
+    def rgb_frames(self) -> Iterator[np.ndarray]:
+        """Decodes the video with ffmpeg: (H, W, 3) uint8 frames, in frame order.
+
+        The video is stored as full-range BT.709 YUV and tagged so; decoders that ignore the tags
+        (BT.601 limited range is a common default) get wrong colours, so decode through this or make
+        sure your decoder honours the stream's colour tags.
+        """
+        import subprocess
+
+        width, height = self.info["config"]["width"], self.info["config"]["height"]
+        command = ["ffmpeg", "-v", "error", "-i", str(self.video),
+                   "-vf", "scale=in_color_matrix=auto:in_range=auto,format=rgb24", "-f", "rawvideo", "-"]
+        frame_bytes = width * height * 3
+        with subprocess.Popen(command, stdout=subprocess.PIPE) as ffmpeg:
+            try:
+                while True:
+                    data = ffmpeg.stdout.read(frame_bytes)
+                    if len(data) < frame_bytes:
+                        break
+                    yield np.frombuffer(data, dtype=np.uint8).reshape(height, width, 3)
+            finally:
+                ffmpeg.kill()  # the caller may stop early; don't let ffmpeg complain about the closed pipe

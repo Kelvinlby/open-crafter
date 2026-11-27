@@ -15,7 +15,7 @@ import java.util.Locale;
  * --launch FILE     worker launch spec (written by the encoderWorkerLaunch task)
  * --config FILE     capture settings (JSON, see EncodeConfig); defaults otherwise
  * --workers N       parallel worker clients (default: by CPU count, at most 4)
- * --profile DIR     game profile each worker copies (default: the dev client's run/)
+ * --profile DIR     game profile each worker copies (default: the dev client's run/, from the launch spec)
  * --display MODE    offscreen (GPU, no window; default), xvfb (software), native (visible windows)
  * --retries N       extra attempts for a recording whose worker failed (default 1)
  * --stall-minutes M kill a worker that made no progress for this long (default 10)
@@ -26,7 +26,7 @@ public record EncodeOptions(Path launch, List<Path> inputs, Path output, EncodeC
 							Display display, int retries, int stallMinutes, boolean force) {
 	public enum Display { OFFSCREEN, XVFB, NATIVE }
 
-	public static EncodeOptions parse(String[] argv, Path defaultProfile) throws IOException {
+	public static EncodeOptions parse(String[] argv) throws IOException {
 		Path launch = null;
 		Path output = null;
 		Path profile = null;
@@ -65,7 +65,16 @@ public record EncodeOptions(Path launch, List<Path> inputs, Path output, EncodeC
 			throw new IllegalArgumentException("Need --launch, --input and --output");
 		}
 		return new EncodeOptions(launch, List.copyOf(inputs), output, config, Math.max(1, workers),
-			profile == null ? defaultProfile : profile, display, Math.max(0, retries), Math.max(1, stall), force);
+			profile, display, Math.max(0, retries), Math.max(1, stall), force);
+	}
+
+	/** The same options with {@code profile} filled in if none was given. */
+	public EncodeOptions withDefaultProfile(Path defaultProfile) {
+		return profile != null ? this : new EncodeOptions(launch, inputs, output, config, workers, defaultProfile, display, retries, stallMinutes, force);
+	}
+
+	public EncodeOptions withConfig(EncodeConfig resolved) {
+		return new EncodeOptions(launch, inputs, output, resolved, workers, profile, display, retries, stallMinutes, force);
 	}
 
 	/** Each worker is a whole game (several busy threads): about one per three cores, at most four. */

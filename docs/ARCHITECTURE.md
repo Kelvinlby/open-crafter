@@ -47,6 +47,21 @@ captured frame). Client modules that react to the player's in-world actions subs
 `client.interaction.Interactions` instead of hooking clicks themselves.
 Op names are `<area>.<verb>`, e.g. `input.rotate`, `vision.configure`.
 
+### Extension entrypoints
+
+Other mods can plug into open-crafter without touching it (the recording encoder, `docs/encoder.md`,
+is one):
+
+| Entrypoint | Type | Effect |
+|---|---|---|
+| `open-crafter:modules` | `ModModule` | installed after the built-in modules, with the same `ModContext` (ops, sensors, frame annotators) |
+| `open-crafter:frames` | `FramePublisher` | receives captured frames in-process instead of the shared-memory ring (at most one) |
+
+A `FramePublisher` that returns `lossless() == true` gets every captured frame: the vision sensor
+waits for the GPU instead of dropping a frame whose readback buffers are all in flight. All
+open-crafter animations and timestamps read the game clock (`Util.getNanos()`), so a tool that
+drives that clock (the encoder) paces them with everything else.
+
 ## Threading rules
 
 - The game main thread never blocks: no socket I/O, no waiting on futures, no locks

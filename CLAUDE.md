@@ -7,6 +7,12 @@ open-crafter is a Minecraft mod for the **Fabric** loader, targeting **Minecraft
 - Build: `./gradlew build` → jars in `build/libs/`
 - Version defaults to `dev`; override with `./gradlew build -Pversion=1.0.0`. CI builds use the short git hash as the version.
 
+## Recording encoder (not part of the mod)
+
+- `src/encoder` (+ `src/encoderTest`) is a separate source set and Fabric mod (`open-crafter-encoder`) that replays packet recordings in headless worker clients and writes datasets: `./gradlew encode -Pinput=... -Poutput=...`, tests with `./gradlew encoderTest`. See `docs/encoder.md`.
+- Never move encoder code or dependencies (Via, zstd-jni) into `src/main`; the mod only offers generic extension points (`open-crafter:modules`, `open-crafter:frames`).
+- Workers render with `SDL_VIDEO_DRIVER=offscreen` (GPU, no window). Never let Gradle run `runEncoderWorker` itself: it opens a visible window.
+
 ## Compatibility requirements
 
 - Every feature must work regardless of Minecraft's rendering backend (**OpenGL or Vulkan**). Do not call backend-specific APIs (raw GL calls, LWJGL OpenGL/Vulkan bindings) directly; go through Minecraft's / Fabric's rendering abstractions.

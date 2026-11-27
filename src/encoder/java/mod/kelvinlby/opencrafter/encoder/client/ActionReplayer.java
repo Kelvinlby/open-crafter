@@ -50,7 +50,7 @@ final class ActionReplayer {
 		this.minecraft = minecraft;
 	}
 
-	/** Where the client handles key bindings: re-enacts one tick's actions, in the order they were sent. */
+	/** Re-enacts one tick's actions, in the order they were sent (screens open or not). */
 	void replayTick(LocalPlayer player, List<Packet<?>> actions) {
 		continueDigging(player, actions);
 		for (Packet<?> packet : actions) {

@@ -34,26 +34,18 @@ public final class EncodeMain {
 	}
 
 	public static void main(String[] args) throws Exception {
-		WorkerLaunch launch = null;
 		EncodeOptions options;
+		WorkerLaunch launch;
 		try {
-			options = EncodeOptions.parse(args, Path.of("run"));
-			launch = WorkerLaunch.read(options.launch());
+			EncodeOptions parsed = EncodeOptions.parse(args);
+			launch = WorkerLaunch.read(parsed.launch());
+			options = parsed.withDefaultProfile(Path.of(launch.profileDir()));
 		} catch (IllegalArgumentException e) {
 			System.err.println(e.getMessage());
 			System.exit(2);
 			return;
 		}
-		EncodeOptions effective = launch.profileDir() == null ? options : withProfileDefault(options, launch);
-		System.exit(run(effective, launch) ? 0 : 1);
-	}
-
-	private static EncodeOptions withProfileDefault(EncodeOptions options, WorkerLaunch launch) {
-		if (!options.profile().equals(Path.of("run"))) {
-			return options;
-		}
-		return new EncodeOptions(options.launch(), options.inputs(), options.output(), options.config(), options.workers(),
-			Path.of(launch.profileDir()), options.display(), options.retries(), options.stallMinutes(), options.force());
+		System.exit(run(options.withConfig(VideoEncoders.resolve(options.config())), launch) ? 0 : 1);
 	}
 
 	private static boolean run(EncodeOptions options, WorkerLaunch launch) throws IOException, InterruptedException {

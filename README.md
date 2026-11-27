@@ -85,6 +85,7 @@ It uses only chaining injectors, so it runs alongside Singularity (both hand vie
 - [Architecture](docs/ARCHITECTURE.md): layers, threading, flow semantics
 - [Protocol](docs/PROTOCOL.md): wire format and shared-memory layout
 - Ops: [vision](docs/ops/vision.md) · [status](docs/ops/status.md) · [input](docs/ops/input.md) · [inventory](docs/ops/inventory.md)
+- [Recording encoder](docs/encoder.md): `./gradlew encode` replays packet recordings in parallel headless clients and writes RGB / flow / sensor datasets (a development tool, not part of the mod)
 
 ## Build
 
