@@ -209,6 +209,7 @@ sampled at `p + flow`, non-occluded pixels; "zero" = same with flow 0):
 | Camera yaw 2°/tick | 7.4 vs 32.5 (center flow −11.97 px = f·tan 2° exactly) | – |
 | Yaw + strafe, mobs | 1.6–1.8 vs 4.7–5.2; on mobs 3–8 vs 9–54 | 4.1–4.5 vs 26–30 |
 | Particle cloud, static camera | particles 7–8 vs 57–59 | – |
+| Hotbar slot switch (GUI scale 2), selection frame | 1.5–4.8 vs 72–92 (dx = 40 px × slot delta, dy = 0; occluded = the slot it lands on) | – |
 
 Residual error comes from nearest-pixel sampling of sub-pixel flow on high-frequency
 textures and from sprite animation.

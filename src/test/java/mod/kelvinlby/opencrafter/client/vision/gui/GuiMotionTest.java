@@ -49,6 +49,30 @@ class GuiMotionTest {
 		assertTrue(motion.appeared().isEmpty());
 	}
 
+	/** Hotbar: nine slot icons stay put while the selection frame jumps from slot 2 to slot 6. */
+	@Test
+	void hotbarSelectionMovesOnlyTheSelectionFrame() {
+		float selection = 9;
+		GuiElement before = quad(10, 2 * 20, 80, selection);
+		GuiElement after = quad(10, 6 * 20, 80, selection);
+		GuiMotion motion = GuiMotion.between(hotbarFrame(before), hotbarFrame(after));
+		assertEquals(1, motion.moved().size());
+		assertSame(before, motion.moved().getFirst().prev());
+		assertSame(after, motion.moved().getFirst().cur());
+		assertEquals(80.0F, after.centroidX() - before.centroidX());
+		assertTrue(motion.vanished().isEmpty());
+		assertTrue(motion.appeared().isEmpty());
+	}
+
+	private static GuiFrame hotbarFrame(GuiElement selectionFrame) {
+		List<GuiElement> elements = new ArrayList<>();
+		for (int slot = 0; slot < 9; slot++) {
+			elements.add(quad(slot, slot * 20, 80, slot));
+		}
+		elements.add(selectionFrame);
+		return new GuiFrame(elements, 200, 100);
+	}
+
 	@Test
 	void differentSpritesNeverMatch() {
 		GuiElement diamond = quad(0, 0, 0, 1);
