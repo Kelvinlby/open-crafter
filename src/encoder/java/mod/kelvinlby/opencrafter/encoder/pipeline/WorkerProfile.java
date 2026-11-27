@@ -7,6 +7,7 @@ import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.util.List;
 import java.util.Set;
 import java.util.stream.Stream;
 
@@ -23,10 +24,9 @@ final class WorkerProfile {
 	private WorkerProfile() {
 	}
 
+	/** Makes {@code gameDir} a fresh copy of {@code profile}, so changes to the profile always apply. */
 	static void prepare(Path profile, Path gameDir) throws IOException {
-		if (Files.isDirectory(gameDir)) {
-			return;
-		}
+		deleteRecursively(gameDir);
 		Path temp = gameDir.resolveSibling(gameDir.getFileName() + ".tmp");
 		deleteRecursively(temp);
 		Files.createDirectories(temp);
@@ -37,7 +37,21 @@ final class WorkerProfile {
 				}
 			}
 		}
+		forceWindowed(temp.resolve("options.txt"));
 		Files.move(temp, gameDir);
+	}
+
+	/**
+	 * The window is created before any mod code runs, from {@code options.txt}: fullscreen would size
+	 * the framebuffer to the display mode instead of the capture size.
+	 */
+	private static void forceWindowed(Path options) throws IOException {
+		if (Files.isRegularFile(options)) {
+			List<String> lines = Files.readAllLines(options).stream()
+				.map(line -> line.startsWith("fullscreen:") ? "fullscreen:false" : line)
+				.toList();
+			Files.write(options, lines);
+		}
 	}
 
 	private static void place(Path entry, Path target) throws IOException {

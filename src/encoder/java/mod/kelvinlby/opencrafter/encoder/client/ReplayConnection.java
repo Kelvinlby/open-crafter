@@ -2,6 +2,7 @@ package mod.kelvinlby.opencrafter.encoder.client;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
+import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelOutboundHandlerAdapter;
 import io.netty.channel.ChannelPromise;
@@ -29,6 +30,8 @@ import net.minecraft.network.protocol.login.ClientboundLoginCompressionPacket;
 import net.minecraft.network.protocol.login.ClientboundLoginDisconnectPacket;
 import net.minecraft.server.packs.repository.KnownPack;
 
+import java.util.List;
+
 /**
  * The client's connection to a recording instead of a server. Recorded S2C bytes enter through the
  * real frame decoder and packet codec, so every listener handles them exactly as from a server;
@@ -36,7 +39,7 @@ import net.minecraft.server.packs.repository.KnownPack;
  * then dropped. A few packets that only make sense on a live link are filtered out.
  */
 final class ReplayConnection extends Connection {
-	private final EmbeddedChannel channel = new EmbeddedChannel();
+	private final ReplayChannel channel = new ReplayChannel();
 	private final boolean serverResourcePacks;
 	private long decodeErrors;
 	private boolean sectionsTouched;
@@ -45,9 +48,10 @@ final class ReplayConnection extends Connection {
 		super(PacketFlow.CLIENTBOUND);
 		this.serverResourcePacks = serverResourcePacks;
 		configureSerialization(channel.pipeline(), PacketFlow.CLIENTBOUND, false, null);
+		removeProxyHandlers();
 		configurePacketHandler(channel.pipeline());
 		channel.pipeline().addBefore("packet_handler", "replay_sink", new DropSentPackets());
-		channel.pipeline().fireChannelActive();
+		channel.goLive();
 	}
 
 	/** Hands one recorded S2C packet (id + body, uncompressed) to the client, as a network frame. */
@@ -83,6 +87,38 @@ final class ReplayConnection extends Connection {
 	public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
 		decodeErrors++;
 		EncoderLog.warnThrottled("replay-decode", "Skipped a recorded packet the client could not decode", cause);
+	}
+
+	/**
+	 * Client mods may put a proxy (SOCKS, HTTP) in front of every connection. A replay has no
+	 * network: a running proxy would hold back the client's first write, decode the recorded bytes
+	 * as its handshake and close the channel when its connect times out. While the channel is not
+	 * live a proxy handler has only added its codecs, in front of itself, next to the socket: it is
+	 * removed with everything ahead of it before it ever starts. Matched by name, so no netty-proxy
+	 * dependency.
+	 */
+	private void removeProxyHandlers() {
+		List<String> names = channel.pipeline().names();
+		int last = -1;
+		for (int i = 0; i < names.size(); i++) {
+			ChannelHandler handler = channel.pipeline().get(names.get(i));
+			if (handler != null && isProxyHandler(handler.getClass())) {
+				last = i;
+			}
+		}
+		for (String name : names.subList(0, last + 1)) {
+			ChannelHandler removed = channel.pipeline().remove(name);
+			EncoderLog.LOGGER.info("Removed '{}' ({}): a replay has no network to proxy", name, removed.getClass().getName());
+		}
+	}
+
+	private static boolean isProxyHandler(Class<?> type) {
+		for (Class<?> c = type; c != null; c = c.getSuperclass()) {
+			if (c.getName().equals("io.netty.handler.proxy.ProxyHandler")) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	private boolean isLiveLinkOnly(Packet<?> packet) {
@@ -127,6 +163,25 @@ final class ReplayConnection extends Connection {
 			value >>>= 7;
 		}
 		out.writeByte(value);
+	}
+
+	/**
+	 * An in-memory channel that reports itself inactive until {@link #goLive}: handlers added while
+	 * the pipeline is built only set themselves up, nothing that waits for a live link starts.
+	 */
+	private static final class ReplayChannel extends EmbeddedChannel {
+		private boolean live;
+
+		@Override
+		public boolean isActive() {
+			return live && super.isActive();
+		}
+
+		/** Marks the channel active and hands it to {@link Connection#channelActive}. */
+		void goLive() {
+			live = true;
+			pipeline().fireChannelActive();
+		}
 	}
 
 	/** Swallows packets on their way out; pipeline reconfiguration messages pass. */

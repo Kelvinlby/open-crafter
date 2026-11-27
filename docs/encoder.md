@@ -31,10 +31,11 @@ done, what failed and why. Worker logs are in `<output>/.encoder/logs/`.
 **The profile.** Each worker's game directory is a copy of the dev client's `run/` folder: mods,
 `options.txt` (GUI scale, render distance, graphics, FOV, ...), mod configs, shader packs and
 resource packs. Configure everything there with `./gradlew runClient` and the encoder uses it.
-`mods/`, `shaderpacks/`, `resourcepacks/` are linked, everything else is copied once per worker
-slot (`<output>/.encoder/workers/`; delete it after changing the profile). Worlds, logs and crash
-reports are left out. The worker only overrides what never shows in the picture: vsync, frame
-limit, pause on lost focus and sound volume.
+`mods/`, `shaderpacks/`, `resourcepacks/` are linked, everything else is copied afresh per worker
+slot at the start of every run (`<output>/.encoder/workers/`). Worlds, logs and crash reports are
+left out. The worker only overrides what never shows in the picture: vsync, frame limit, pause on
+lost focus and sound volume. A replay has no network, so proxy handlers that client mods put on
+connections (e.g. a SOCKS proxy) are removed from the replay connection.
 
 **Headless.** `offscreen` uses SDL's offscreen video driver: the client renders on the real GPU
 (OpenGL through EGL, or Vulkan) without any window or X server. `xvfb` needs `xvfb-run` and renders
