@@ -57,6 +57,11 @@ final class FrameSnapshot implements AutoCloseable {
 		clear(hudMask, 0.0F);
 	}
 
+	/** The world's depth without the hand: a shader mod draws the hand into the world depth, so take it from before. */
+	SizedTexture worldDepthUnderHand() {
+		return shaderHand ? preShaderHandDepth : worldDepth;
+	}
+
 	void copyWorldDepth(GpuTextureView depth) {
 		copyDepth(depth, worldDepth);
 	}

@@ -114,4 +114,41 @@ vec4 vision_occludedResult() {
     return vec4(0.0, 0.0, 1.0, 0.0);
 }
 
+// ---- rigid world geometry and sky ----
+
+// The sky is at infinity: only the view direction matters, camera translation does not.
+vec4 vision_skyClip(vec2 ndc) {
+    vec3 ray = vision_unproject(PrevInvProj, ndc, 0.75) - vision_unproject(PrevInvProj, ndc, 0.25);
+    ray = normalize(ray.z < 0.0 ? ray : -ray);
+    vec3 worldDir = (PrevInvView * vec4(ray, 0.0)).xyz;
+    return CurProj * vec4((CurView * vec4(worldDir, 0.0)).xyz, 0.0);
+}
+
+vec4 vision_surfaceClip(vec2 ndc, float depth, out float distance) {
+    vec3 prevView = vision_unproject(PrevInvProj, ndc, depth);
+    vec3 cameraRelative = (PrevInvView * vec4(prevView, 1.0)).xyz + CameraDelta.xyz;
+    vec3 curView = (CurView * vec4(cameraRelative, 1.0)).xyz;
+    distance = -curView.z;
+    return CurProj * vec4(curView, 1.0);
+}
+
+bool vision_staticOccludedAt(sampler2D curWorldDepth, sampler2D curHandDepth, vec2 pixel, float distance) {
+    return !vision_insideScreen(pixel)
+        || !vision_matchesDepth(curWorldDepth, CurInvProj, pixel, distance, DepthInfo.z)
+        || vision_handCovers(curHandDepth, pixel, DepthInfo.z);
+}
+
+// Flow of the world surface (or sky) stored in the reference world depth at this fragment.
+vec4 vision_staticFlow(sampler2D prevWorldDepth, sampler2D curWorldDepth, sampler2D curHandDepth, vec2 fragCoord) {
+    float depth = texelFetch(prevWorldDepth, ivec2(fragCoord), 0).r;
+    vec2 ndc = vision_pixelToNdc(fragCoord);
+    float distance = FAR_AWAY;
+    vec4 clip = vision_isClear(depth, DepthInfo.y) ? vision_skyClip(ndc) : vision_surfaceClip(ndc, depth, distance);
+    if (clip.w <= 1.0e-6) {
+        return vision_occludedResult();
+    }
+    vec2 pixel = vision_ndcToPixel(clip.xy / clip.w);
+    return vision_result(pixel - fragCoord, vision_staticOccludedAt(curWorldDepth, curHandDepth, pixel, distance));
+}
+
 #endif

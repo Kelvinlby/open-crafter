@@ -101,7 +101,7 @@ public final class VisionPipelines {
 	public static final RenderPipeline FLOW_MOTION_HAND = RenderPipelines.registerOptional(
 		motion("vision_flow_motion_hand")
 			.withShaderDefine("HAND")
-			.withBindGroupLayout(samplers("PrevDepth", "CurHandDepth"))
+			.withBindGroupLayout(samplers("PrevDepth", "CurHandDepth", "CurWorldDepth", "PrevWorldDepth"))
 			.build()
 	);
 

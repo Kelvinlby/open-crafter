@@ -5,11 +5,15 @@
 
 // Writes the flow of a recorded moving surface, but only where that surface is the one that
 // was visible in the reference frame (its distance matches the reference depth texel).
+// curPosition.w: 0 = the surface vanished (occluded), 1 = it moved to curPosition.xyz,
+// 2 = it vanished from on top of world geometry (a hand object that landed), so the world
+// under it, already there in the reference frame, is what was seen.
 
 uniform sampler2D PrevDepth;       // reference world depth, or reference hand depth with HAND
 uniform sampler2D CurHandDepth;
-#ifndef HAND
 uniform sampler2D CurWorldDepth;
+#ifdef HAND
+uniform sampler2D PrevWorldDepth;
 #endif
 
 layout(location = 0) in vec4 curPosition;
@@ -50,6 +54,12 @@ void main() {
     if (!wasVisible()) {
         discard;
     }
+#ifdef HAND
+    if (curPosition.w > 1.5) {
+        result = vision_staticFlow(PrevWorldDepth, CurWorldDepth, CurHandDepth, gl_FragCoord.xy);
+        return;
+    }
+#endif
     if (curPosition.w < 0.5) {
         result = vision_occludedResult();
         return;

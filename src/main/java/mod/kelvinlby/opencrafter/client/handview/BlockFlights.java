@@ -2,6 +2,7 @@ package mod.kelvinlby.opencrafter.client.handview;
 
 import com.mojang.blaze3d.vertex.PoseStack;
 import mod.kelvinlby.opencrafter.client.handview.anim.RightClickPace;
+import mod.kelvinlby.opencrafter.client.vision.VisionHooks;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.player.LocalPlayer;
@@ -52,7 +53,7 @@ final class BlockFlights {
 		if (target == null) {
 			return false;
 		}
-		flights.add(new MorphFlight(target, model, launchPose(placed.hand(), arm), ticks, RightClickPace.ticks(swingTicks * SWING_SHARE)));
+		flights.add(new MorphFlight(target, model, placed.hand(), launchPose(placed.hand(), arm), ticks, RightClickPace.ticks(swingTicks * SWING_SHARE)));
 		heldBack.holdBack(level, placed);
 		return true;
 	}
@@ -63,8 +64,9 @@ final class BlockFlights {
 		if (!enabled) {
 			flights.clear();
 		}
+		boolean waitForRecord = VisionHooks.tracksMotion();
 		for (MorphFlight flight : flights) {
-			flight.tick(ticks);
+			flight.tick(ticks, waitForRecord);
 			if (flight.travelling() && outOfSight(flight.target)) {
 				flight.end();
 			}
@@ -85,13 +87,31 @@ final class BlockFlights {
 		lastFrame = frame;
 		boolean ended = false;
 		for (MorphFlight flight : flights) {
-			if (!flight.done() && !BlockMorph.draw(pose, collector, light, flight, frame, flight.weight(ticks + partialTicks))) {
+			if (!flight.done() && !drawTracked(pose, collector, light, flight, frame, ticks + partialTicks)) {
 				flight.end();
 				ended = true;
 			}
 		}
 		if (ended) {
 			heldBack.revealAllBut(travellingBlocks());
+		}
+	}
+
+	/**
+	 * Draws one flight as an object of its own for the vision sensor's flow: it carries on the held
+	 * item it left, and once settled on its block it hands its pixels over to the block.
+	 */
+	private static boolean drawTracked(PoseStack pose, SubmitNodeCollector collector, int light, MorphFlight flight, HandFrame frame, double now) {
+		boolean settled = flight.settled(now);
+		boolean recorded = VisionHooks.beginHandObject(flight, flight.hand, settled);
+		try {
+			boolean drawn = BlockMorph.draw(pose, collector, light, flight, frame, flight.weight(now));
+			if (drawn && recorded && settled) {
+				flight.noteSettledRecorded();
+			}
+			return drawn;
+		} finally {
+			VisionHooks.endHandObject();
 		}
 	}
 

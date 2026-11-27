@@ -93,6 +93,32 @@ public final class MotionRecorder {
 		owners.poll();
 	}
 
+	/**
+	 * Hand-pass geometry that is an object of its own, such as a block flying from the hand into the
+	 * world: recorded in the hand phase under {@code owner} (an identity that lasts as long as the
+	 * object), wherever it is drawn. {@code continues}: the owner whose geometry it carries on, when
+	 * that is gone (a flight leaving an emptied hand). {@code settled}: it sits exactly on world
+	 * geometry this frame, which is what shows there once it is gone. Pair with {@link #endHandObject}.
+	 */
+	public void beginHandObject(@Nullable Object owner, @Nullable Object continues, boolean settled) {
+		pushPhase(RecordPhase.HAND);
+		pushOwner(owner);
+		if (frame == null || owner == null) {
+			return;
+		}
+		if (continues != null) {
+			frame.noteSuccessor(continues, owner);
+		}
+		if (settled) {
+			frame.noteSettled(owner);
+		}
+	}
+
+	public void endHandObject() {
+		popOwner();
+		popPhase();
+	}
+
 	public void onEntityExtracted(Object renderState, int entityId) {
 		if (frame != null) {
 			entityIds.put(renderState, entityId);

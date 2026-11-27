@@ -1,6 +1,7 @@
 package mod.kelvinlby.opencrafter.client.vision.debug;
 
 import mod.kelvinlby.opencrafter.OpenCrafter;
+import mod.kelvinlby.opencrafter.client.input.keys.KeyMappings;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.TitleScreen;
@@ -63,6 +64,15 @@ public final class DebugScenario {
 		if (ticksInWorld > SETTLE_TICKS) {
 			player.setYRot(player.getYRot() + spinDegreesPerTick);
 			strafe(player);
+			useNow(minecraft);
+		}
+	}
+
+	/** {@code -Dopencrafter.vision.debugUsePeriod=N} right clicks every N ticks (places blocks, drives Hand View's flights). */
+	private void useNow(Minecraft minecraft) {
+		int period = Integer.getInteger("opencrafter.vision.debugUsePeriod", 0);
+		if (period > 0 && (ticksInWorld - SETTLE_TICKS) % period == 0) {
+			KeyMappings.click(minecraft.options.keyUse);
 		}
 	}
 

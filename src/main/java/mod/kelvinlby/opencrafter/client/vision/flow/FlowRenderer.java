@@ -207,6 +207,10 @@ public final class FlowRenderer implements FlowStage, AutoCloseable {
 			pass.setPipeline(RenderSystem.getCompiledPipeline(pipeline));
 			bindFlowUniforms(pass);
 			pass.setUniform("PrevDepth", prevDepth.view(), FullscreenPass.nearest());
+			if (phase == RecordPhase.HAND) {
+				// Hand objects that landed on world geometry hand their pixels over to it
+				pass.setUniform("PrevWorldDepth", previous.worldDepthUnderHand().view(), FullscreenPass.nearest());
+			}
 			pass.setVertexBuffer(0, mesh.slice());
 			pass.draw(mesh.vertexCount(), 1, 0, 0);
 		}

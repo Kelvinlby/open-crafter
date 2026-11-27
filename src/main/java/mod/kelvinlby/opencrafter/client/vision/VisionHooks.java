@@ -17,6 +17,7 @@ import net.minecraft.client.renderer.feature.submit.SubmitNode;
 import net.minecraft.client.renderer.rendertype.RenderType;
 import net.minecraft.client.renderer.state.gui.GuiElementRenderState;
 import net.minecraft.client.renderer.state.level.CameraRenderState;
+import net.minecraft.world.InteractionHand;
 import org.joml.Matrix4fc;
 import org.jspecify.annotations.Nullable;
 
@@ -158,6 +159,33 @@ public final class VisionHooks {
 	public static void endHand() {
 		RECORDER.popOwner();
 		RECORDER.popPhase();
+	}
+
+	/** One hand's arm and held item, inside {@link #beginHand}. */
+	public static void beginHandArm(InteractionHand hand) {
+		RECORDER.pushOwner(RECORDER.isRecording() ? new SubmitKey.HandOwner(hand) : null);
+	}
+
+	/** Whether flow is being captured, so moving objects are tracked from one captured frame to the next. */
+	public static boolean tracksMotion() {
+		return capture != null && flow != null && capture.tracksMotion();
+	}
+
+	/**
+	 * Hand-pass geometry that is an object of its own (a block flying from the hand), tracked
+	 * under {@code owner}'s identity wherever it is drawn. {@code leftHand}: the hand whose held item
+	 * it carries on when that item is gone; {@code settled}: it sits exactly on world geometry now,
+	 * which takes over its pixels once it is gone. True when this frame is recorded for flow.
+	 */
+	public static boolean beginHandObject(Object owner, @Nullable InteractionHand leftHand, boolean settled) {
+		boolean recording = RECORDER.isRecording();
+		Object continues = leftHand == null ? null : new SubmitKey.HandOwner(leftHand);
+		RECORDER.beginHandObject(recording ? owner : null, continues, settled);
+		return recording;
+	}
+
+	public static void endHandObject() {
+		RECORDER.endHandObject();
 	}
 
 	public static void endOwner() {

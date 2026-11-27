@@ -42,6 +42,12 @@ public final class VisionCapture {
 		clientTicks++;
 	}
 
+	/** Flow is wanted and someone reads the frames: moving objects are being tracked across captured frames. */
+	public boolean tracksMotion() {
+		VisionSettings.Snapshot snapshot = settings.get();
+		return snapshot.wantsFlow() && publisher.hasReaders();
+	}
+
 	/** Start of {@code Minecraft.renderFrame}: decide whether this frame will be captured. */
 	public void onFrameStart() {
 		request = decideCapture();
