@@ -188,12 +188,19 @@ Verified in a dev client with Sodium 0.9.2 + Iris 1.11.7 (Minecraft 26.3, OpenGL
   depth that differs from the vanilla one. Turn waving foliage off in the pack's settings (or
   use no pack) where exact flow matters. `meta.shader_pack_in_use` /
   `vision.status.shader_pack_in_use` report the state.
-- Not verified: Iris on the Vulkan backend, and real-world shader packs (none available
-  offline). To verify: install a pack, capture `rgb,flow,flow_occluded` while turning the
+- Vulkan backend: Iris 1.11.7 does not start there (no Iris log, `shader_pack_in_use` stays
+  false with a pack selected), so shader packs only exist on OpenGL. With Iris and Sodium
+  installed on Vulkan everything works as without them (verified on lavapipe, see below).
+- Not verified: other real-world shader packs than Complementary. To verify: install a pack, capture `rgb,flow,flow_occluded` while turning the
   camera and walking past mobs, and compare the photometric warp error (see below) against
   the shaders-off baseline.
 
 ## Debugging and verification aids (dev only)
+
+Headless Vulkan: set `preferredGraphicsBackend:"vulkan"` in `run/options.txt` and run with Mesa's
+software driver, `VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.json` (plus the same in
+`VK_DRIVER_FILES`), on top of the usual `xvfb-run` command; the log must say `Using graphics
+backend Vulkan ... llvmpipe`.
 
 JVM system properties (e.g. via `JAVA_TOOL_OPTIONS` for `./gradlew runClient`):
 

@@ -82,6 +82,14 @@ frame, as `{id, kind, contact_px}`. `contact_px` is `[x, y]` in framebuffer pixe
 behind the camera. The projection leaves out view bobbing, so it can be a few pixels off while
 walking. If frames are dropped, align by the events' `frame_before` instead.
 
+## Verified
+
+Headless dev clients with the debug driver below, all features on (Hand View, contact effects,
+gaze): OpenGL with and without Iris + Complementary r5.8.1, and Vulkan (lavapipe) with and
+without Iris/Sodium installed. Events, outcomes and `contact_px` match the actions; placements
+fly, breaks shrink, the door swings, gaze turns to off-crosshair targets and back, with flow
+tracking each motion.
+
 ## Testing aid (dev only)
 
 `-Dopencrafter.interaction.debugModActions=N` runs a mod-style action every N ticks, never through
