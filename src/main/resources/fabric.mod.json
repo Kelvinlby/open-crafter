@@ -41,6 +41,10 @@
 			"environment": "client"
 		},
 		{
+			"config": "open-crafter.inventoryview.mixins.json",
+			"environment": "client"
+		},
+		{
 			"config": "open-crafter.iris.mixins.json",
 			"environment": "client"
 		}

@@ -42,6 +42,7 @@ public final class SettingsScreen {
 		return YetAnotherConfigLib.createBuilder()
 			.title(Texts.name("title"))
 			.category(HandViewTab.build(draft.handView))
+			.category(InventoryViewTab.build(draft.inventoryView))
 			.category(VisionTab.build(draft.vision, vision))
 			.category(InputTab.build(draft.input))
 			.category(TransportTab.build(draft.transport, transport))

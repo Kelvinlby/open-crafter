@@ -1,0 +1,16 @@
+{
+	"required": true,
+	"package": "mod.kelvinlby.opencrafter.mixin.inventoryview",
+	"compatibilityLevel": "JAVA_25",
+	"client": [
+		"GuiFlightMixin",
+		"InventoryScreenFlightMixin",
+		"ScreenFlightMixin"
+	],
+	"injectors": {
+		"defaultRequire": 1
+	},
+	"overwrites": {
+		"requireAnnotations": true
+	}
+}

@@ -8,4 +8,5 @@ public final class OpenCrafterConfig {
 	public VisionConfig vision = new VisionConfig();
 	public InputConfig input = new InputConfig();
 	public HandViewConfig handView = new HandViewConfig();
+	public InventoryViewConfig inventoryView = new InventoryViewConfig();
 }

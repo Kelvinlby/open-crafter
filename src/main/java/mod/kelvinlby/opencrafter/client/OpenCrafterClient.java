@@ -11,6 +11,7 @@ import mod.kelvinlby.opencrafter.client.config.SettingsScreen;
 import mod.kelvinlby.opencrafter.client.handview.HandViewModule;
 import mod.kelvinlby.opencrafter.client.input.InputModule;
 import mod.kelvinlby.opencrafter.client.inventory.InventoryModule;
+import mod.kelvinlby.opencrafter.client.inventoryview.InventoryViewModule;
 import mod.kelvinlby.opencrafter.client.status.StatusModule;
 import mod.kelvinlby.opencrafter.client.vision.VisionModule;
 import mod.kelvinlby.opencrafter.core.config.ConfigStore;
@@ -34,7 +35,8 @@ public final class OpenCrafterClient implements ClientModInitializer {
 		VISION,
 		new InputModule(),
 		new InventoryModule(),
-		new HandViewModule()
+		new HandViewModule(),
+		new InventoryViewModule()
 	);
 
 	@Override

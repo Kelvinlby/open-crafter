@@ -15,6 +15,8 @@ open-crafter is a Minecraft mod for the **Fabric** loader, targeting **Minecraft
 ## Testing
 
 - Unless a visible window is necessary (e.g. the user needs to see or interact with it), run dev clients for testing headlessly.
+  `xvfb-run` alone is not enough on a Wayland desktop: Minecraft creates its window through SDL, which picks Wayland. Use
+  `env -u WAYLAND_DISPLAY SDL_VIDEO_DRIVER=x11 xvfb-run -a -s "-screen 0 854x480x24" ./gradlew runClient` and check the log says `Created window using SDL video driver: x11`.
 
 ## Code style and structure
 
