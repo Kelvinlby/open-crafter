@@ -13,7 +13,7 @@ import net.minecraft.world.level.block.LiquidBlock;
 import net.minecraft.world.level.block.RenderShape;
 import net.minecraft.world.level.block.state.BlockState;
 
-/** A confirmed break: the removed block shrinks to its centre instead of vanishing in one frame. */
+/** A confirmed break: the removed block shrinks into its drop instead of vanishing in one frame. */
 public final class BreakShrink implements InteractionListener {
 	private final ConfigStore config;
 	private final TempBlocks blocks;

@@ -29,7 +29,7 @@ public final class InventoryViewHooks {
 		flight = backpackFlight;
 	}
 
-	/** Vanilla's drawing of a whole screen, as the mixin hands it over. */
+	/** One of vanilla's screen drawing steps (background, contents, deferred tooltips), as the mixin hands it over. */
 	@FunctionalInterface
 	public interface ScreenDraw {
 		void draw(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTicks);
@@ -56,8 +56,11 @@ public final class InventoryViewHooks {
 
 	// ---- drawing ----
 
-	/** Draws a screen moved down by its flight offset; the mouse moves with it so hovering matches. */
-	public static void drawScreen(Screen screen, GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTicks, ScreenDraw vanilla) {
+	/**
+	 * Draws one of a screen's own drawing steps moved down by its flight offset; the mouse moves
+	 * with it so hovering matches.
+	 */
+	public static void drawMoved(Screen screen, GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTicks, ScreenDraw vanilla) {
 		int offset = flight == null ? 0 : flight.offset(screen);
 		if (offset == 0) {
 			vanilla.draw(graphics, mouseX, mouseY, partialTicks);
@@ -109,7 +112,19 @@ public final class InventoryViewHooks {
 		}
 		int mouseX = (int) minecraft.mouseHandler.getScaledXPos(minecraft.getWindow());
 		int mouseY = (int) minecraft.mouseHandler.getScaledYPos(minecraft.getWindow());
-		closing.extractRenderStateWithTooltipAndSubtitles(graphics, mouseX, mouseY, deltaTracker.getGameTimeDeltaTicks());
+		drawScreenOnly(closing, graphics, mouseX, mouseY, deltaTracker.getGameTimeDeltaTicks());
+	}
+
+	/**
+	 * Vanilla's screen drawing steps without the screen draw method itself, so what other mods
+	 * hook into that method (overlays meant for an open screen) is not drawn for a closed one.
+	 */
+	private static void drawScreenOnly(Screen screen, GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTicks) {
+		graphics.nextStratum();
+		drawMoved(screen, graphics, mouseX, mouseY, partialTicks, screen::extractBackground);
+		graphics.nextStratum();
+		drawMoved(screen, graphics, mouseX, mouseY, partialTicks, screen::extractRenderState);
+		drawMoved(screen, graphics, mouseX, mouseY, partialTicks, GuiGraphicsExtractor::extractDeferredElements);
 	}
 
 	private static int fade(int argb, float strength) {
