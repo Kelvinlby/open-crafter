@@ -18,7 +18,6 @@ import net.minecraft.world.entity.player.PlayerSkin;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.component.SwingAnimation;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.phys.BlockHitResult;
 import org.jspecify.annotations.Nullable;
 
 import java.util.function.DoubleBinaryOperator;
@@ -46,6 +45,13 @@ public final class HandViewHooks {
 	public static void beginHands(float partial, PoseStack pose) {
 		partialTicks = partial;
 		handFrame.begin(pose);
+	}
+
+	/** As a hand's pass starts (its own pose pushed): turns it toward the contact of an off-crosshair action. */
+	public static void beginHand(InteractionHand hand, PoseStack pose) {
+		if (active() != null) {
+			view.aims.apply(pose, handFrame, hand, now());
+		}
 	}
 
 	/** The hands' lag behind turns; 0 keeps them fixed to the camera. */
@@ -82,7 +88,8 @@ public final class HandViewHooks {
 		HumanoidArm arm = armOf(player, hand);
 		view.swings.applyMotion(pose, hand, arm, partialTicks);
 		if (config.serverRotations) {
-			view.rotation.apply(pose, player);
+			// A turn toward an action's contact already follows the sent rotation's aim
+			view.rotation.apply(pose, player, 1 - view.aims.level(hand, now()));
 		}
 		// The eating pose is already turned into the middle, where hand transforms would push the food off centre:
 		// they fade out as the eating pose fades in
@@ -228,18 +235,14 @@ public final class HandViewHooks {
 		return config != null && EatPose.smooth(config);
 	}
 
-	// ---- swings (LivingEntity, Minecraft) ----
+	// ---- swings (LivingEntity) ----
 
 	public static InteractionHand swingHand(LivingEntity entity, InteractionHand hand) {
 		HandViewConfig config = active();
 		if (config == null || entity != Minecraft.getInstance().player) {
 			return hand;
 		}
-		return switch (config.swing.swingHand) {
-			case VANILLA -> hand;
-			case MAIN_HAND -> InteractionHand.MAIN_HAND;
-			case OFF_HAND -> InteractionHand.OFF_HAND;
-		};
+		return HandActions.shown(config.swing, hand);
 	}
 
 	public static int swingDuration(LivingEntity entity, int duration) {
@@ -251,55 +254,20 @@ public final class HandViewHooks {
 		return config.swing.swingTicks;
 	}
 
-	/** After an attack or mining swing was asked for; {@code started} when it played. */
-	public static void onLeftSwing(boolean started) {
-		HandViewConfig config = active();
-		LocalPlayer player = Minecraft.getInstance().player;
-		if (started && config != null && player != null) {
-			view.swings.onLeftSwing(config.swing, player);
-		}
-	}
-
-	public static void beforeUseItemOn(LocalPlayer player, InteractionHand hand, BlockHitResult hit) {
-		Minecraft minecraft = Minecraft.getInstance();
-		if (active() != null && minecraft.level != null) {
-			view.beforeUseItemOn(minecraft.level, player, hand, hit);
-		}
-	}
-
-	public static void afterUseItemOn() {
-		HandViewConfig config = active();
-		Minecraft minecraft = Minecraft.getInstance();
-		if (config != null && minecraft.level != null && minecraft.player != null) {
-			view.afterUseItemOn(minecraft.level, minecraft.player, config);
-		}
-	}
-
-	/** After a right click swing on an entity. */
-	public static void onInteractEntitySwing(boolean started) {
-		onRightSwing(started, SwingAnimator.RightClick.ENTITY);
-	}
-
-	/** After a right click swing on a block (a placement or an interaction). */
-	public static void onUseBlockSwing(boolean started) {
-		onRightSwing(started, SwingAnimator.RightClick.BLOCK);
-	}
-
-	/** After a right click swing of the item itself (throwing, ...). */
-	public static void onUseItemSwing(boolean started) {
-		onRightSwing(started, SwingAnimator.RightClick.ITEM);
-	}
-
-	private static void onRightSwing(boolean started, SwingAnimator.RightClick kind) {
-		HandViewConfig config = active();
-		LocalPlayer player = Minecraft.getInstance().player;
-		if (started && config != null && player != null) {
-			view.swings.onRightSwing(config.swing, player, kind);
+	/** After the local player (or anyone) started a swing, in the hand it shows in. */
+	public static void onSwing(LivingEntity entity, InteractionHand hand, boolean started) {
+		if (started && active() != null) {
+			view.actions.onSwing(entity, hand);
 		}
 	}
 
 	private static @Nullable HandViewConfig active() {
 		return view == null ? null : view.active();
+	}
+
+	/** The hand actions' time this frame, in ticks. */
+	private static double now() {
+		return view.actions.ticks() + partialTicks;
 	}
 
 	private static HumanoidArm armOf(LocalPlayer player, InteractionHand hand) {

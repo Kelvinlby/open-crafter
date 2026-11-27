@@ -63,6 +63,14 @@ abstract class HandRendererMixin {
 		}
 	}
 
+	// Right after the hand's own pose was pushed, before anything places the arm or item
+	@Inject(method = "submitArmWithItem", at = @At(value = "INVOKE", target = "Lcom/mojang/blaze3d/vertex/PoseStack;pushPose()V", ordinal = 0, shift = At.Shift.AFTER))
+	private void openCrafter$beginHand(PlayerRenderState playerState, FirstPersonHandsAndItemsRenderState state, float partialTicks, float xRot,
+		InteractionHand hand, float attack, ItemStack itemStack, float inverseArmHeight, PoseStack poseStack, SubmitNodeCollector collector, int light,
+		CallbackInfo ci) {
+		HandViewHooks.beginHand(hand, poseStack);
+	}
+
 	// The float arguments are partialTicks, xRot, attack, inverseArmHeight
 	@ModifyVariable(method = "submitArmWithItem", at = @At("HEAD"), argsOnly = true, ordinal = 2)
 	private float openCrafter$attack(float attack, @Local(argsOnly = true) InteractionHand hand) {

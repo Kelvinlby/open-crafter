@@ -9,8 +9,6 @@
 		"ItemStackRenderStateAccessor",
 		"LayerRenderStateAccessor",
 		"LivingEntitySwingMixin",
-		"LocalPlayerAccessor",
-		"MinecraftClickMixin",
 		"RenderSectionRegionMixin",
 		"SodiumLevelSliceMixin"
 	],
