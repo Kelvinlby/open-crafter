@@ -12,6 +12,10 @@ open-crafter is a Minecraft mod for the **Fabric** loader, targeting **Minecraft
 - Every feature must work regardless of Minecraft's rendering backend (**OpenGL or Vulkan**). Do not call backend-specific APIs (raw GL calls, LWJGL OpenGL/Vulkan bindings) directly; go through Minecraft's / Fabric's rendering abstractions.
 - Every feature must work **with and without shader mods such as Iris**. Do not rely on vanilla shader pipelines being active or unmodified; test both cases when touching rendering.
 
+## Testing
+
+- Unless a visible window is necessary (e.g. the user needs to see or interact with it), run dev clients for testing headlessly.
+
 ## Code style and structure
 
 - Keep the codebase well organized, clean and neat.
