@@ -10,4 +10,5 @@ public final class OpenCrafterConfig {
 	public HandViewConfig handView = new HandViewConfig();
 	public InventoryViewConfig inventoryView = new InventoryViewConfig();
 	public InteractionConfig interaction = new InteractionConfig();
+	public GazeConfig gaze = new GazeConfig();
 }

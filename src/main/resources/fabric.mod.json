@@ -49,6 +49,10 @@
 			"environment": "client"
 		},
 		{
+			"config": "open-crafter.gaze.mixins.json",
+			"environment": "client"
+		},
+		{
 			"config": "open-crafter.iris.mixins.json",
 			"environment": "client"
 		}
