@@ -1,0 +1,176 @@
+# Releases everything under one version: the mod (GitHub release v<version> with the jars) and the
+# Python package (PyPI, through a trusted publisher: no token).
+#
+# Release: Actions > publish > Run workflow, enter the version without "v" (e.g. 0.2.0 or 0.2.0rc1).
+# The mod is built with -Pversion=<version> (fabric.mod.json and jar names); the Python package
+# gets the same version in pyproject.toml for the build only. The release notes list the commits
+# since the previous v* tag.
+#
+# PyPI trusted publisher settings: owner Kelvinlby, repository open-crafter,
+# workflow publish.yml, environment pypi.
+
+name: publish
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version without "v" (PEP 440, e.g. 0.2.0 or 0.2.0rc1)'
+        required: true
+        type: string
+
+concurrency: publish
+
+env:
+  VERSION: ${{ inputs.version }}
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    outputs:
+      prerelease: ${{ steps.version.outputs.prerelease }}
+    steps:
+      - name: checkout repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: setup python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: check the version
+        id: version
+        run: |
+          python -m pip install packaging
+          python - <<'EOF'
+          import os
+          from packaging.version import InvalidVersion, Version
+          given = os.environ["VERSION"]
+          try:
+              version = Version(given)
+          except InvalidVersion:
+              raise SystemExit(f"::error::{given} is not a PEP 440 version (enter it without 'v', e.g. 0.2.0)")
+          if str(version) != given:
+              raise SystemExit(f"::error::write {given} as {version}")
+          with open(os.environ["GITHUB_OUTPUT"], "a") as out:
+              out.write(f"prerelease={str(version.is_prerelease).lower()}\n")
+          EOF
+          if git rev-parse -q --verify "refs/tags/v$VERSION" >/dev/null; then
+            echo "::error::v$VERSION was already released"
+            exit 1
+          fi
+
+  mod:
+    needs: check
+    runs-on: ubuntu-24.04
+    steps:
+      - name: checkout repository
+        uses: actions/checkout@v7
+      - name: validate gradle wrapper
+        uses: gradle/actions/wrapper-validation@v6
+      - name: setup jdk
+        uses: actions/setup-java@v6
+        with:
+          java-version: '25'
+          distribution: 'microsoft'
+      - name: setup gradle
+        uses: gradle/actions/setup-gradle@v6
+      - name: build the mod
+        run: |
+          chmod +x ./gradlew
+          ./gradlew build -Pversion="$VERSION"
+          built=$(unzip -p "build/libs/open-crafter-$VERSION.jar" fabric.mod.json | jq -r .version)
+          if [ "$built" != "$VERSION" ]; then
+            echo "::error::the jar's fabric.mod.json says version $built"
+            exit 1
+          fi
+      - name: upload jars
+        uses: actions/upload-artifact@v7
+        with:
+          name: mod-jars
+          path: build/libs/open-crafter-${{ inputs.version }}*.jar
+          retention-days: 7
+
+  python:
+    needs: check
+    runs-on: ubuntu-24.04
+    steps:
+      - name: checkout repository
+        uses: actions/checkout@v7
+      - name: setup python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: build sdist and wheel
+        run: |
+          sed -i "s/^version = \".*\"/version = \"$VERSION\"/" python/pyproject.toml
+          grep -q "^version = \"$VERSION\"" python/pyproject.toml
+          cp LICENSE python/LICENSE  # ship the licence text; setuptools picks up LICENSE* by itself
+          python -m pip install build twine
+          python -m build python --outdir dist
+          python -m twine check --strict dist/*
+      - name: upload distributions
+        uses: actions/upload-artifact@v7
+        with:
+          name: python-dist
+          path: dist/
+          retention-days: 7
+
+  # Only after both builds succeeded, so a broken mod build never leaves a lone PyPI release.
+  pypi:
+    needs: [mod, python]
+    runs-on: ubuntu-24.04
+    environment:
+      name: pypi
+      url: https://pypi.org/project/opencrafter/${{ inputs.version }}/
+    permissions:
+      id-token: write  # trusted publishing
+    steps:
+      - name: download distributions
+        uses: actions/download-artifact@v7
+        with:
+          name: python-dist
+          path: dist/
+      - name: publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          skip-existing: true  # a re-run after a failed GitHub release step goes through
+
+  github-release:
+    needs: [check, pypi]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - name: checkout repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: download jars
+        uses: actions/download-artifact@v7
+        with:
+          name: mod-jars
+          path: jars/
+      - name: write release notes (commits since the previous release)
+        run: |
+          previous=$(git describe --tags --abbrev=0 --match 'v*' 2>/dev/null || true)
+          range=${previous:+$previous..}HEAD
+          {
+            echo "## Commits"
+            echo
+            git log --no-merges --format='- %s (%h)' "$range"
+            if [ -n "$previous" ]; then
+              echo
+              echo "**Full changelog**: https://github.com/$GITHUB_REPOSITORY/compare/$previous...v$VERSION"
+            fi
+          } > notes.md
+          cat notes.md
+      - name: create the tag and the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PRERELEASE: ${{ needs.check.outputs.prerelease }}
+        run: |
+          gh release create "v$VERSION" jars/*.jar \
+            --target "$GITHUB_SHA" \
+            --title "v$VERSION" \
+            --notes-file notes.md \
+            $([ "$PRERELEASE" = true ] && echo --prerelease)
