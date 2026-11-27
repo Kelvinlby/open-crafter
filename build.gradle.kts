@@ -12,7 +12,26 @@ repositories {
 		name = "TerraformersMC"
 		content { includeGroup("com.terraformersmc") }
 	}
+	maven("https://repo.viaversion.com/everything") {
+		name = "ViaVersion"
+		content { includeGroup("com.viaversion") }
+	}
+	mavenCentral()
 }
+
+// ---- Recording encoder --------------------------------------------------------------------------
+// Replays packet recordings in headless clients and writes datasets. Never part of the mod jar:
+// it is its own source set (and its own Fabric mod, loaded only by the encoder's worker clients).
+val encoder: SourceSet by sourceSets.creating {
+	compileClasspath += sourceSets.main.get().compileClasspath + sourceSets.main.get().output
+	runtimeClasspath += sourceSets.main.get().runtimeClasspath + sourceSets.main.get().output
+}
+val encoderTest: SourceSet by sourceSets.creating {
+	compileClasspath += encoder.compileClasspath + encoder.output
+	runtimeClasspath += encoder.runtimeClasspath + encoder.output
+}
+configurations[encoderTest.implementationConfigurationName].extendsFrom(configurations.testImplementation.get())
+configurations[encoderTest.runtimeOnlyConfigurationName].extendsFrom(configurations.testRuntimeOnly.get())
 
 dependencies {
 	// To change the versions see the gradle.properties file
@@ -30,6 +49,12 @@ dependencies {
 	// Optional: the settings screen also opens from Mod Menu's list when it is installed.
 	compileOnly("com.terraformersmc:modmenu:${providers.gradleProperty("modmenu_version").get()}") { isTransitive = false }
 
+	// Encoder only: protocol translation of older recordings, and zstd for recordings and flow.
+	"encoderImplementation"("com.viaversion:viaversion-common:${providers.gradleProperty("viaversion_version").get()}")
+	"encoderImplementation"("com.viaversion:viabackwards-common:${providers.gradleProperty("viabackwards_version").get()}")
+	"encoderImplementation"("com.viaversion:vialoader:${providers.gradleProperty("vialoader_version").get()}") { isTransitive = false }
+	"encoderImplementation"("com.github.luben:zstd-jni:${providers.gradleProperty("zstd_version").get()}")
+
 	testImplementation(platform("org.junit:junit-bom:5.13.4"))
 	testImplementation("org.junit.jupiter:junit-jupiter")
 	testRuntimeOnly("org.junit.platform:junit-platform-launcher")
@@ -43,6 +68,21 @@ tasks.test {
 	doFirst { testRunDir.mkdirs() }
 	systemProperty("opencrafter.projectDir", layout.projectDirectory.asFile.absolutePath)
 }
+
+val encoderTests = tasks.register<Test>("encoderTest") {
+	description = "Tests of the recording encoder (not part of the mod)."
+	group = "verification"
+	testClassesDirs = encoderTest.output.classesDirs
+	classpath = encoderTest.runtimeClasspath
+	useJUnitPlatform()
+	val runDir = layout.buildDirectory.dir("encoder-test-run").get().asFile
+	workingDir = runDir
+	doFirst { runDir.mkdirs() }
+	// Optional: a folder of real recordings for the end-to-end translation tests.
+	providers.gradleProperty("sampleRecordings").orNull?.let { systemProperty("encoder.sampleRecordings", it) }
+	maxHeapSize = "4g"
+}
+tasks.check { dependsOn(encoderTests) }
 
 tasks.processResources {
 	val version = version
