@@ -54,19 +54,32 @@ public final class ArrayStreamWriter implements AutoCloseable {
 		position = MAGIC.length + 4L + header.length;
 	}
 
+	/** One frame packed and compressed, ready to append; {@code rawBytes} is its size as delivered. */
+	public record Encoded(byte[] compressed, long rawBytes) {
+	}
+
 	/** One frame as the vision sensor delivers it (little-endian elements, top row first). */
 	public void write(ByteBuffer frame) throws IOException {
+		append(encode(frame));
+	}
+
+	/** Packs and compresses one frame. Touches no writer state, so frames can be encoded on any thread. */
+	public Encoded encode(ByteBuffer frame) {
 		ByteBuffer source = frame.duplicate();
-		rawBytes += source.remaining();
-		byte[] packed = codec.pack(source, width, height);
-		byte[] compressed = Zstd.compress(packed, zstdLevel);
+		long raw = source.remaining();
+		return new Encoded(Zstd.compress(codec.pack(source, width, height), zstdLevel), raw);
+	}
+
+	/** Appends an encoded frame; frames must be appended in frame order. */
+	public void append(Encoded frame) throws IOException {
+		rawBytes += frame.rawBytes();
 		if (frames == offsets.length) {
 			offsets = Arrays.copyOf(offsets, frames * 2);
 		}
 		offsets[frames++] = position;
-		out.writeInt(compressed.length);
-		out.write(compressed);
-		position += 4L + compressed.length;
+		out.writeInt(frame.compressed().length);
+		out.write(frame.compressed());
+		position += 4L + frame.compressed().length;
 	}
 
 	public int frames() {

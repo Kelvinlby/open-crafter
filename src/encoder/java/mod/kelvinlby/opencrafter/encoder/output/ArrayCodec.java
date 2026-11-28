@@ -2,6 +2,7 @@ package mod.kelvinlby.opencrafter.encoder.output;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.FloatBuffer;
 
 /**
  * Turns one frame of a vision stream into bytes that compress well. Float fields (optical flow)
@@ -93,10 +94,11 @@ public sealed interface ArrayCodec {
 	record Bits() implements ArrayCodec {
 		@Override
 		public byte[] pack(ByteBuffer frame, int width, int height) {
-			int n = frame.remaining();
-			byte[] out = new byte[(n + 7) / 8];
-			for (int i = 0; i < n; i++) {
-				if (frame.get() != 0) {
+			byte[] in = new byte[frame.remaining()];
+			frame.get(in);
+			byte[] out = new byte[(in.length + 7) / 8];
+			for (int i = 0; i < in.length; i++) {
+				if (in[i] != 0) {
 					out[i >>> 3] |= (byte) (0x80 >>> (i & 7));
 				}
 			}
@@ -129,23 +131,35 @@ public sealed interface ArrayCodec {
 		private Planes() {
 		}
 
-		/** Output: plane c, byte b, row-major element i at {@code (c * 2 + b) * n + i}, n = width × height. */
+		/**
+		 * Output: plane c, byte b, row-major element i at {@code (c * 2 + b) * n + i}, n = width × height.
+		 * Works a row at a time on plain arrays: this runs for every pixel of every flow frame.
+		 */
 		static byte[] deltaShuffled16(ByteBuffer frame, int width, int height, int channels, FloatTo16 convert) {
-			ByteBuffer in = frame.order(ByteOrder.LITTLE_ENDIAN);
+			FloatBuffer in = frame.order(ByteOrder.LITTLE_ENDIAN).asFloatBuffer();
 			int n = width * height;
 			byte[] out = new byte[n * channels * 2];
-			short[] previous = new short[channels];
-			for (int i = 0; i < n; i++) {
-				boolean rowStart = i % width == 0;
+			float[] row = new float[width * channels];
+			for (int y = 0; y < height; y++) {
+				in.get(row);
 				for (int c = 0; c < channels; c++) {
-					short value = convert.convert(in.getFloat());
-					short delta = (short) (rowStart ? value : value - previous[c]);
-					previous[c] = value;
-					out[(c * 2) * n + i] = (byte) delta;
-					out[(c * 2 + 1) * n + i] = (byte) (delta >>> 8);
+					deltaRow16(row, c, channels, convert, out, (c * 2) * n + y * width, n);
 				}
 			}
 			return out;
+		}
+
+		/** One channel of one row: deltas to the left neighbour (the first element is kept), low then high byte plane. */
+		private static void deltaRow16(float[] row, int channel, int channels, FloatTo16 convert, byte[] out, int low, int planeSize) {
+			int high = low + planeSize;
+			short previous = 0;
+			for (int x = 0, i = channel; i < row.length; x++, i += channels) {
+				short value = convert.convert(row[i]);
+				short delta = (short) (value - previous);
+				previous = value;
+				out[low + x] = (byte) delta;
+				out[high + x] = (byte) (delta >>> 8);
+			}
 		}
 
 		static byte[] deltaShuffled32(ByteBuffer frame, int width, int height, int channels) {

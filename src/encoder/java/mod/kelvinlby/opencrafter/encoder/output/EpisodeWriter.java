@@ -15,16 +15,24 @@ import java.util.Map;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 /**
  * Writes one episode's frames on its own thread, so encoding overlaps rendering. The render thread
- * hands over frames through a short queue and waits only when the writer falls behind.
+ * hands over frames through a short queue and waits only when the writer falls behind. Array
+ * streams (flow) are packed and compressed on a small pool, several frames at once, and written
+ * in frame order: one thread alone cannot keep up with the renderer.
  *
  * <p>Files: {@code rgb.mkv} (or as configured), {@code flow.ocs}, {@code flow_occluded.ocs},
  * {@code frames.jsonl.zst} (one line of metadata per frame, in frame order).
  */
 public final class EpisodeWriter implements AutoCloseable {
 	private static final int QUEUE_FRAMES = 6;
+	private static final int ENCODE_THREADS = Math.clamp(Runtime.getRuntime().availableProcessors() / 4, 1, 4);
+	private static final int IN_FLIGHT_FRAMES = ENCODE_THREADS * 2;
 	private static final Frame END = new Frame(-1, Map.of(), Map.of());
 
 	private final Path dir;
@@ -32,6 +40,9 @@ public final class EpisodeWriter implements AutoCloseable {
 	private final BlockingQueue<Frame> queue = new ArrayBlockingQueue<>(QUEUE_FRAMES);
 	private final Map<String, ArrayDeque<ByteBuffer>> pool = new ConcurrentHashMap<>();
 	private final Map<String, AutoCloseable> writers = new LinkedHashMap<>();
+	private final ExecutorService encoders = Executors.newFixedThreadPool(ENCODE_THREADS,
+		Thread.ofPlatform().name("open-crafter-encoder-pack-", 0).daemon().factory());
+	private final ArrayDeque<Pending> inFlight = new ArrayDeque<>();
 	private final JsonlWriter frames;
 	private final Thread thread;
 	private volatile @Nullable Throwable failure;
@@ -39,6 +50,10 @@ public final class EpisodeWriter implements AutoCloseable {
 
 	/** One captured frame: its streams (owned by the writer until written) and metadata. */
 	public record Frame(long index, Map<String, ByteBuffer> streams, Map<String, Object> meta) {
+	}
+
+	/** A frame whose array streams are being encoded on the pool. */
+	private record Pending(Frame frame, Map<String, Future<ArrayStreamWriter.Encoded>> encoded) {
 	}
 
 	public EpisodeWriter(Path dir, EncodeConfig config) throws IOException {
@@ -106,36 +121,80 @@ public final class EpisodeWriter implements AutoCloseable {
 
 	private void run() {
 		try {
-			for (Frame frame = queue.take(); frame != END; frame = queue.take()) {
-				writeFrame(frame);
-			}
+			pump();
 		} catch (Throwable t) {
 			failure = t;
 			queue.clear();
+		} finally {
+			encoders.shutdownNow();
 		}
 	}
 
-	private void writeFrame(Frame frame) throws Exception {
+	/** Starts frames as they arrive (up to {@link #IN_FLIGHT_FRAMES}) and writes the oldest when nothing new is waiting. */
+	private void pump() throws Exception {
+		while (true) {
+			Frame next = inFlight.isEmpty() ? queue.take() : queue.poll();
+			if (next == END) {
+				while (!inFlight.isEmpty()) {
+					finish(inFlight.poll());
+				}
+				return;
+			}
+			if (next == null || inFlight.size() >= IN_FLIGHT_FRAMES) {
+				finish(inFlight.poll());
+			}
+			if (next != null) {
+				inFlight.add(start(next));
+			}
+		}
+	}
+
+	private Pending start(Frame frame) throws IOException {
+		Map<String, Future<ArrayStreamWriter.Encoded>> encoded = new LinkedHashMap<>();
 		for (Map.Entry<String, ByteBuffer> stream : frame.streams().entrySet()) {
-			writeStream(stream.getKey(), stream.getValue());
+			if (writer(stream.getKey()) instanceof ArrayStreamWriter array) {
+				ByteBuffer data = stream.getValue().rewind();
+				encoded.put(stream.getKey(), encoders.submit(() -> array.encode(data)));
+			}
+		}
+		return new Pending(frame, encoded);
+	}
+
+	private void finish(Pending pending) throws Exception {
+		for (Map.Entry<String, ByteBuffer> stream : pending.frame().streams().entrySet()) {
+			writeStream(stream.getKey(), stream.getValue(), pending.encoded().get(stream.getKey()));
 			giveBack(stream.getKey(), stream.getValue());
 		}
-		frames.write(frame.meta());
+		frames.write(pending.frame().meta());
 		written++;
 	}
 
-	private void writeStream(String name, ByteBuffer data) throws IOException {
+	private void writeStream(String name, ByteBuffer data, @Nullable Future<ArrayStreamWriter.Encoded> encoded) throws Exception {
+		switch (writer(name)) {
+			case RgbVideoWriter rgb -> rgb.write(data.rewind());
+			case ArrayStreamWriter array -> array.append(awaitEncoded(encoded));
+			default -> throw new IllegalStateException("No writer for " + name);
+		}
+	}
+
+	private static ArrayStreamWriter.Encoded awaitEncoded(@Nullable Future<ArrayStreamWriter.Encoded> encoded) throws Exception {
+		if (encoded == null) {
+			throw new IllegalStateException("Array stream frame was never encoded");
+		}
+		try {
+			return encoded.get();
+		} catch (ExecutionException e) {
+			throw e.getCause() instanceof Exception cause ? cause : e;
+		}
+	}
+
+	private AutoCloseable writer(String name) throws IOException {
 		AutoCloseable writer = writers.get(name);
 		if (writer == null) {
 			writer = openWriter(name);
 			writers.put(name, writer);
 		}
-		data.rewind();
-		switch (writer) {
-			case RgbVideoWriter rgb -> rgb.write(data);
-			case ArrayStreamWriter array -> array.write(data);
-			default -> throw new IllegalStateException("No writer for " + name);
-		}
+		return writer;
 	}
 
 	private AutoCloseable openWriter(String stream) throws IOException {
@@ -152,7 +211,7 @@ public final class EpisodeWriter implements AutoCloseable {
 	private void giveBack(String stream, ByteBuffer buffer) {
 		ArrayDeque<ByteBuffer> free = pool.computeIfAbsent(stream, s -> new ArrayDeque<>());
 		synchronized (free) {
-			if (free.size() < QUEUE_FRAMES + 2) {
+			if (free.size() < QUEUE_FRAMES + IN_FLIGHT_FRAMES + 2) {
 				free.push(buffer);
 			}
 		}

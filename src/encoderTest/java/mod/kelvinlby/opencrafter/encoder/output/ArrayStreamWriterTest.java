@@ -51,6 +51,32 @@ class ArrayStreamWriterTest {
 		}
 	}
 
+	@Test
+	void halfFloatPlanesFollowTheDocumentedLayout() {
+		ByteBuffer frame = flowFrame(2);
+		byte[] packed = new ArrayCodec.HalfFloat(2).pack(frame.duplicate(), WIDTH, HEIGHT);
+		int n = WIDTH * HEIGHT;
+		for (int i = 0; i < n; i++) {
+			for (int c = 0; c < 2; c++) {
+				short value = Float.floatToFloat16(frame.getFloat((i * 2 + c) * 4));
+				short left = i % WIDTH == 0 ? 0 : Float.floatToFloat16(frame.getFloat(((i - 1) * 2 + c) * 4));
+				short delta = (short) (value - left);
+				assertEquals((byte) delta, packed[(c * 2) * n + i]);
+				assertEquals((byte) (delta >>> 8), packed[(c * 2 + 1) * n + i]);
+			}
+		}
+	}
+
+	@Test
+	void bitsArePackedMostSignificantFirst() {
+		ByteBuffer frame = maskFrame(1);
+		byte[] packed = new ArrayCodec.Bits().pack(frame.duplicate(), WIDTH, HEIGHT);
+		for (int i = 0; i < WIDTH * HEIGHT; i++) {
+			boolean bit = (packed[i >>> 3] & (0x80 >>> (i & 7))) != 0;
+			assertEquals(frame.get(i) != 0, bit);
+		}
+	}
+
 	private static void writeStream(Path file, ArrayCodec codec) throws IOException {
 		try (ArrayStreamWriter writer = new ArrayStreamWriter(file, "flow", WIDTH, HEIGHT, codec, 3)) {
 			for (int f = 0; f < FRAMES; f++) {
