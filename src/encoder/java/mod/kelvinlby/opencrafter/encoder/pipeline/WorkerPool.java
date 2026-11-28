@@ -218,8 +218,8 @@ final class WorkerPool {
 		}
 	}
 
-	private static long gigabytes(long bytes) {
-		return Math.round(bytes / (double) (1L << 30));
+	private static String gigabytes(long bytes) {
+		return String.format(java.util.Locale.ROOT, "%.1f", bytes / (double) (1L << 30));
 	}
 
 	private static long newestModification(Path dir) throws IOException {

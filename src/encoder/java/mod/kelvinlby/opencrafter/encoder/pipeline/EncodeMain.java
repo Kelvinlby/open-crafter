@@ -94,8 +94,8 @@ public final class EncodeMain {
 	/** Jobs that never started because their episode would not fit: pending for the next run. */
 	private static void reportLeftOver(JobScheduler scheduler, RunReport report) {
 		for (JobScheduler.Planned planned : scheduler.waiting()) {
-			report.pending(planned.job(), "not enough free disk space (needs about "
-				+ Math.round(scheduler.estimate(planned) / (double) (1L << 30)) + " GB)");
+			report.pending(planned.job(), String.format(java.util.Locale.ROOT, "not enough free disk space (needs about %.1f GB)",
+				scheduler.estimate(planned) / (double) (1L << 30)));
 		}
 		if (report.anyPending()) {
 			EncoderLog.LOGGER.warn("Encoding PAUSED: the output disk is full; see {}", PauseMarker.FILE);
