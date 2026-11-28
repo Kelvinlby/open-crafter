@@ -189,8 +189,15 @@ public final class ReplaySession {
 	}
 
 	Vec3 steerMove(Entity entity, MoverType type, Vec3 delta) {
-		if (stage == Stage.PLAYING && type == MoverType.SELF && entity == minecraft.player) {
-			return motion.steer(minecraft.player, delta);
+		LocalPlayer player = minecraft.player;
+		if (stage != Stage.PLAYING || type != MoverType.SELF || player == null) {
+			return delta;
+		}
+		if (entity == player) {
+			return motion.steer(player, delta);
+		}
+		if (entity == MotionReplayer.drivenVehicle(player)) {
+			return motion.steerVehicle(entity, delta);
 		}
 		return delta;
 	}

@@ -194,7 +194,9 @@ tick, in the places the real client does the same work:
 - **Movement**: the player's own tick runs with the recorded keys (so sneaking, sprinting,
   swimming, item-use slowdown, walk distance and view bobbing come from vanilla code), but its
   movement is steered so the tick ends exactly at the recorded position. The camera turns smoothly
-  between the rotations sent at the tick ends.
+  between the rotations sent at the tick ends. While riding, the player sits where its vehicle
+  puts it: a vehicle the client drives (boat, horse) is steered onto the recorded vehicle path the
+  same way, any other (minecart) moves with the server's packets.
 - **Packets for other mods**: the recorded motion packets are sent at the end of the tick, and
   actions send what the game mode sends, so open-crafter's interaction events, gaze, Hand View and
   contact effects react as they would live.
