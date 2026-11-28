@@ -53,10 +53,16 @@ public final class HingeSwing implements InteractionListener {
 		}
 	}
 
-	/** Clicking one half of a door opens both; only the clicked one is in the outcome. */
+	/**
+	 * Clicking one half of a door opens both; only the clicked one is in the outcome. Only toggles
+	 * count: a door just placed (air before) has no old open state to swing from.
+	 */
 	private static List<BlockChange> withOtherHalves(ClientLevel level, List<BlockChange> changes) {
 		List<BlockChange> all = new ArrayList<>(changes);
 		for (BlockChange change : changes) {
+			if (!HingeBlocks.toggled(change.before(), change.after())) {
+				continue;
+			}
 			BlockPos other = HingeBlocks.otherHalf(change.pos(), change.after());
 			if (other != null && changes.stream().noneMatch(known -> known.pos().equals(other))) {
 				BlockState now = level.getBlockState(other);
