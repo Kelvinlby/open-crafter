@@ -20,10 +20,15 @@ import java.util.Locale;
  * --retries N       extra attempts for a recording whose worker failed (default 1)
  * --stall-minutes M kill a worker that made no progress for this long (default 10)
  * --force           redo recordings whose episode already exists
+ * --reserve-gb G    keep this much of the output disk free; recordings whose estimated episode does
+ *                   not fit wait, and when none fits the run pauses (default 20)
+ * --resume-command  the command that started this run, written into the pause marker
  * </pre>
  */
 public record EncodeOptions(Path launch, List<Path> inputs, Path output, EncodeConfig config, int workers, Path profile,
-							Display display, int retries, int stallMinutes, boolean force) {
+							Display display, int retries, int stallMinutes, boolean force, long reserveBytes, String resumeCommand) {
+	private static final long GB = 1L << 30;
+
 	public enum Display { OFFSCREEN, XVFB, NATIVE }
 
 	public static EncodeOptions parse(String[] argv) throws IOException {
@@ -37,6 +42,8 @@ public record EncodeOptions(Path launch, List<Path> inputs, Path output, EncodeC
 		int retries = 1;
 		int stall = 10;
 		boolean force = false;
+		long reserveGb = 20;
+		String resumeCommand = "";
 		for (int i = 0; i < argv.length; i++) {
 			String arg = argv[i];
 			String key = arg.contains("=") ? arg.substring(0, arg.indexOf('=')) : arg;
@@ -58,6 +65,8 @@ public record EncodeOptions(Path launch, List<Path> inputs, Path output, EncodeC
 				case "--retries" -> retries = Integer.parseInt(value);
 				case "--stall-minutes" -> stall = Integer.parseInt(value);
 				case "--force" -> force = true;
+				case "--reserve-gb" -> reserveGb = Long.parseLong(value);
+				case "--resume-command" -> resumeCommand = value;
 				default -> throw new IllegalArgumentException("Unknown option " + key);
 			}
 		}
@@ -65,16 +74,16 @@ public record EncodeOptions(Path launch, List<Path> inputs, Path output, EncodeC
 			throw new IllegalArgumentException("Need --launch, --input and --output");
 		}
 		return new EncodeOptions(launch, List.copyOf(inputs), output, config, Math.max(1, workers),
-			profile, display, Math.max(0, retries), Math.max(1, stall), force);
+			profile, display, Math.max(0, retries), Math.max(1, stall), force, Math.max(0, reserveGb) * GB, resumeCommand);
 	}
 
 	/** The same options with {@code profile} filled in if none was given. */
 	public EncodeOptions withDefaultProfile(Path defaultProfile) {
-		return profile != null ? this : new EncodeOptions(launch, inputs, output, config, workers, defaultProfile, display, retries, stallMinutes, force);
+		return profile != null ? this : new EncodeOptions(launch, inputs, output, config, workers, defaultProfile, display, retries, stallMinutes, force, reserveBytes, resumeCommand);
 	}
 
 	public EncodeOptions withConfig(EncodeConfig resolved) {
-		return new EncodeOptions(launch, inputs, output, resolved, workers, profile, display, retries, stallMinutes, force);
+		return new EncodeOptions(launch, inputs, output, resolved, workers, profile, display, retries, stallMinutes, force, reserveBytes, resumeCommand);
 	}
 
 	/** Each worker is a whole game (several busy threads): about one per three cores, at most four. */

@@ -11,6 +11,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.OptionalLong;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
@@ -25,12 +26,16 @@ import java.util.stream.Stream;
 public final class Recording {
 	private static final Pattern SPLIT_SUFFIX = Pattern.compile("^(.*)_s(\\d+)\\.mcrec(\\.part)?$");
 
+	private static final long UNKNOWN = -1;
+
 	private final Path path;
 	private final List<SegmentSource> segments;
+	private final long durationMillis;
 
-	private Recording(Path path, List<SegmentSource> segments) {
+	private Recording(Path path, List<SegmentSource> segments, long durationMillis) {
 		this.path = path;
 		this.segments = segments;
+		this.durationMillis = durationMillis;
 	}
 
 	/** One segment and how to open its bytes. */
@@ -44,14 +49,18 @@ public final class Recording {
 
 	public static Recording open(Path path) throws IOException {
 		if (Files.isDirectory(path)) {
-			return new Recording(path, directorySegments(path));
+			Path session = path.resolve("session.json");
+			String json = Files.isRegularFile(session) ? Files.readString(session) : null;
+			return new Recording(path, directorySegments(path, json), sessionDurationMillis(json));
 		}
 		String name = path.getFileName().toString();
 		if (name.endsWith(".tar")) {
-			return new Recording(path, tarSegments(path));
+			TarIndex index = TarIndex.read(path);
+			String json = tarSessionJson(index);
+			return new Recording(path, tarSegments(index, json), sessionDurationMillis(json));
 		}
 		if (name.endsWith(".mcrec") || name.endsWith(".mcrec.part")) {
-			return new Recording(path, fileChain(path));
+			return new Recording(path, fileChain(path), UNKNOWN);
 		}
 		throw new IOException("Not a recording: " + path);
 	}
@@ -84,17 +93,47 @@ public final class Recording {
 		return segments;
 	}
 
+	/** Wall-clock length of the session from its {@code session.json}, if it has one. */
+	public OptionalLong durationMillis() {
+		return durationMillis >= 0 ? OptionalLong.of(durationMillis) : OptionalLong.empty();
+	}
+
+	/** Bytes of all segments on disk (the whole tar for a session tar). */
+	public long storedBytes() throws IOException {
+		if (!Files.isDirectory(path)) {
+			long bytes = Files.size(path);
+			if (path.getFileName().toString().endsWith(".tar")) {
+				return bytes;
+			}
+			for (int i = 1; i < segments.size(); i++) {
+				bytes += Files.size(path.resolveSibling(segments.get(i).name()));
+			}
+			return bytes;
+		}
+		long bytes = 0;
+		for (SegmentSource segment : segments) {
+			bytes += Files.size(path.resolve(segment.name()));
+		}
+		return bytes;
+	}
+
 	public RecordingReader reader() throws IOException {
 		return new RecordingReader(segments);
 	}
 
-	private static List<SegmentSource> tarSegments(Path tar) throws IOException {
-		TarIndex index = TarIndex.read(tar);
+	private static String tarSessionJson(TarIndex index) throws IOException {
+		if (!index.members().containsKey("session.json")) {
+			return null;
+		}
+		try (InputStream in = index.open("session.json")) {
+			return new String(in.readAllBytes(), StandardCharsets.UTF_8);
+		}
+	}
+
+	private static List<SegmentSource> tarSegments(TarIndex index, String sessionJson) {
 		List<String> names = new ArrayList<>();
-		if (index.members().containsKey("session.json")) {
-			try (InputStream in = index.open("session.json")) {
-				names.addAll(sessionSegmentNames(new String(in.readAllBytes(), StandardCharsets.UTF_8)));
-			}
+		if (sessionJson != null) {
+			names.addAll(sessionSegmentNames(sessionJson));
 		}
 		if (names.isEmpty()) {
 			index.members().keySet().stream().filter(n -> n.endsWith(".mcrec")).sorted().forEach(names::add);
@@ -106,11 +145,10 @@ public final class Recording {
 		return sources;
 	}
 
-	private static List<SegmentSource> directorySegments(Path dir) throws IOException {
+	private static List<SegmentSource> directorySegments(Path dir, String sessionJson) throws IOException {
 		List<String> names = new ArrayList<>();
-		Path session = dir.resolve("session.json");
-		if (Files.isRegularFile(session)) {
-			names.addAll(sessionSegmentNames(Files.readString(session)));
+		if (sessionJson != null) {
+			names.addAll(sessionSegmentNames(sessionJson));
 		}
 		if (names.isEmpty()) {
 			try (Stream<Path> files = Files.list(dir)) {
@@ -147,6 +185,19 @@ public final class Recording {
 
 	private static SegmentSource fileSource(Path file) {
 		return new SegmentSource(file.getFileName().toString(), () -> Files.newInputStream(file));
+	}
+
+	/** {@code endedEpochMillis - startedEpochMillis} of a session, or {@link #UNKNOWN}. */
+	static long sessionDurationMillis(String sessionJson) {
+		if (sessionJson == null) {
+			return UNKNOWN;
+		}
+		JsonObject session = JsonParser.parseString(sessionJson).getAsJsonObject();
+		if (!session.has("startedEpochMillis") || !session.has("endedEpochMillis")) {
+			return UNKNOWN;
+		}
+		long millis = session.get("endedEpochMillis").getAsLong() - session.get("startedEpochMillis").getAsLong();
+		return millis >= 0 ? millis : UNKNOWN;
 	}
 
 	private static List<String> sessionSegmentNames(String sessionJson) {

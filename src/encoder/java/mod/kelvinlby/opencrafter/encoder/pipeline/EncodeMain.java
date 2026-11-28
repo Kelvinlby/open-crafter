@@ -13,11 +13,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -25,7 +24,9 @@ import java.util.concurrent.atomic.AtomicInteger;
  * The encoder ({@code ./gradlew encode}): finds recordings, brings each into the native protocol
  * (Via, in this process, in parallel), and replays them in parallel headless worker clients that
  * write one episode folder each. Recordings whose episode already exists are skipped, so a run can
- * be repeated to pick up new recordings or retry failed ones.
+ * be repeated to pick up new recordings, retry failed ones or continue one that paused because the
+ * output disk was full ({@link PauseMarker}). An episode folder is complete once it has
+ * {@code episode.json}; anything less is deleted, never left behind.
  */
 public final class EncodeMain {
 	private static final String WORK_DIR = ".encoder";
@@ -60,41 +61,87 @@ public final class EncodeMain {
 		EncoderLog.LOGGER.info("{} recordings, {} workers ({}), profile {}", recordings.size(), options.workers(),
 			options.display().name().toLowerCase(java.util.Locale.ROOT), options.profile());
 
-		BlockingQueue<Job> ready = new LinkedBlockingQueue<>();
+		JobScheduler scheduler = new JobScheduler(new OutputDisk(output), options.reserveBytes(),
+			SizeEstimate.initialBytesPerSecond(options.config()));
 		AtomicInteger preparing = new AtomicInteger(recordings.size());
 		ExecutorService translators = Executors.newFixedThreadPool(Math.max(1, Runtime.getRuntime().availableProcessors() / 4));
 		Set<String> names = new HashSet<>();
 		for (Path source : recordings) {
-			String name = uniqueName(names, Recording.open(source).baseName());
+			Recording recording = Recording.open(source);
+			String name = uniqueName(names, recording.baseName());
 			translators.submit(() -> {
 				try {
-					prepare(source, name, output, work, options, report).ifPresent(ready::add);
+					prepare(recording, name, output, work, options, report).ifPresent(scheduler::add);
 				} finally {
-					preparing.decrementAndGet();
+					if (preparing.decrementAndGet() == 0) {
+						scheduler.doneAdding();
+					}
 				}
 			});
 		}
+		if (recordings.isEmpty()) {
+			scheduler.doneAdding();
+		}
 		translators.shutdown();
-		new WorkerPool(options, launch, work, report).run(ready, () -> preparing.get() > 0);
+		new WorkerPool(options, launch, work, report, scheduler).run();
 		translators.awaitTermination(1, TimeUnit.MINUTES);
+		reportLeftOver(scheduler, report);
 		report.write(output);
+		PauseMarker.update(output, report, options.resumeCommand(), scheduler.freeBytes());
 		return !report.anyFailed();
 	}
 
+	/** Jobs that never started because their episode would not fit: pending for the next run. */
+	private static void reportLeftOver(JobScheduler scheduler, RunReport report) {
+		for (JobScheduler.Planned planned : scheduler.waiting()) {
+			report.pending(planned.job(), "not enough free disk space (needs about "
+				+ Math.round(scheduler.estimate(planned) / (double) (1L << 30)) + " GB)");
+		}
+		if (report.anyPending()) {
+			EncoderLog.LOGGER.warn("Encoding PAUSED: the output disk is full; see {}", PauseMarker.FILE);
+		}
+	}
+
 	/** The job for one recording, translating it first if it was recorded with another protocol. */
-	private static java.util.Optional<Job> prepare(Path source, String name, Path output, Path work, EncodeOptions options, RunReport report) {
+	private static Optional<JobScheduler.Planned> prepare(Recording recording, String name, Path output, Path work, EncodeOptions options,
+														  RunReport report) {
 		Path episode = output.resolve(name);
-		if (!options.force() && Files.isRegularFile(episode.resolve("episode.json"))) {
-			report.skipped(name);
-			return java.util.Optional.empty();
-		}
+		String source = recording.path().toAbsolutePath().toString();
 		try {
-			Path playable = nativeRecording(Recording.open(source), work.resolve("native").resolve(name + ".mcrec"));
-			return java.util.Optional.of(new Job(name, playable.toString(), source.toAbsolutePath().toString(), episode.toString(), options.config()));
+			if (!clearForEncoding(episode, name, options, report)) {
+				return Optional.empty();
+			}
+			double seconds = SizeEstimate.capturedSeconds(recording, options.config());
+			Path playable = nativeRecording(recording, work.resolve("native").resolve(name + ".mcrec"));
+			Job job = new Job(name, playable.toString(), source, episode.toString(), options.config());
+			return Optional.of(new JobScheduler.Planned(job, seconds));
 		} catch (Exception e) {
-			report.failed(name, source.toString(), "could not prepare: " + e.getMessage());
-			return java.util.Optional.empty();
+			report.failed(name, source, "could not prepare: " + e.getMessage());
+			return Optional.empty();
 		}
+	}
+
+	/**
+	 * Whether the recording still needs encoding; deletes what an interrupted run left of its episode.
+	 * A complete episode is skipped (unless forced), a folder that is not an episode is never touched.
+	 */
+	private static boolean clearForEncoding(Path episode, String name, EncodeOptions options, RunReport report) throws IOException {
+		switch (EpisodeFolder.of(episode, options.config())) {
+			case COMPLETE -> {
+				if (!options.force()) {
+					report.skipped(name);
+					return false;
+				}
+			}
+			case UNFINISHED -> {
+				EncoderLog.LOGGER.info("{}: deleting the unfinished episode an earlier run left", name);
+				WorkerProfile.deleteRecursively(episode);
+			}
+			case FOREIGN -> throw new IOException(episode + " exists and is not an episode folder; not overwriting it");
+			case ABSENT -> {
+			}
+		}
+		return true;
 	}
 
 	private static Path nativeRecording(Recording recording, Path translated) throws IOException {

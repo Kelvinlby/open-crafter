@@ -23,10 +23,23 @@ encoder's worker clients, and the mod jar never contains it.
 | `-Pretries` | 1 | extra attempts for a recording whose worker failed |
 | `-PstallMinutes` | 10 | a worker with no progress for this long is killed |
 | `-Pforce` | | redo recordings whose episode already exists |
+| `-PreserveGb` | 20 | disk space on the output drive that is never used (see below) |
 
 Recordings whose episode already exists are skipped, so the same command can be repeated to pick
 up new recordings or retry failures. `encode-report.json` in the output folder lists what was
 done, what failed and why. Worker logs are in `<output>/.encoder/logs/`.
+
+**Disk space.** An episode folder is complete once it has `episode.json` (written last); anything
+less is never left behind: a job that fails for good has its folder deleted, and a later run deletes
+what a killed run left. Before a recording starts, its episode size is estimated (session length ×
+a byte rate: first a high guess, then the highest rate measured on this run's finished episodes,
++15%). It starts only if that fits in the free space minus `-PreserveGb` and what the running jobs
+still need; among the jobs that fit the longest goes first, so short ones fill what is left at the
+end. Should the disk still drop below half the reserve, the job with the most left to write is
+stopped and its folder deleted. When nothing more fits, the run stops and writes
+`ENCODE-PAUSED.md` into the output folder: what is encoded, what is not, and the command to
+continue, which is the same command again (it is removed by a run that leaves nothing pending).
+Translated copies of recordings (`.encoder/native/`) are deleted once their episode is done.
 
 **The profile.** Each worker's game directory is a copy of the dev client's `run/` folder: mods,
 `options.txt` (GUI scale, render distance, graphics, FOV, ...), mod configs, shader packs and

@@ -18,6 +18,7 @@ final class RunReport {
 
 	private final List<Map<String, Object>> done = new ArrayList<>();
 	private final List<Map<String, Object>> failed = new ArrayList<>();
+	private final List<Map<String, Object>> pending = new ArrayList<>();
 	private final List<String> skipped = new ArrayList<>();
 	private final long started = System.nanoTime();
 	private int total;
@@ -44,6 +45,20 @@ final class RunReport {
 		EncoderLog.LOGGER.error("{} FAILED: {} ({})", name, reason, progress());
 	}
 
+	/** Left for a later run (the disk is full); not a failure. */
+	synchronized void pending(Job job, String reason) {
+		pending(job.name(), job.source(), reason);
+	}
+
+	synchronized void pending(String name, String source, String reason) {
+		pending.add(Map.of("name", name, "source", source, "reason", reason));
+		EncoderLog.LOGGER.warn("{} PENDING: {} ({})", name, reason, progress());
+	}
+
+	synchronized boolean anyPending() {
+		return !pending.isEmpty();
+	}
+
 	synchronized boolean anyFailed() {
 		return !failed.isEmpty();
 	}
@@ -53,13 +68,30 @@ final class RunReport {
 		report.put("recordings", total);
 		report.put("done", done);
 		report.put("failed", failed);
+		report.put("pending", pending);
 		report.put("skipped_existing", skipped);
 		report.put("wall_seconds", (System.nanoTime() - started) / 1e9);
 		Files.writeString(output.resolve("encode-report.json"), GSON.toJson(report));
-		EncoderLog.LOGGER.info("Encoder finished: {} done, {} failed, {} already encoded", done.size(), failed.size(), skipped.size());
+		EncoderLog.LOGGER.info("Encoder finished: {} done, {} failed, {} pending, {} already encoded", done.size(), failed.size(),
+			pending.size(), skipped.size());
+	}
+
+	/** Names of every recording whose episode is complete: encoded in this run or before. */
+	synchronized List<String> encodedNames() {
+		List<String> names = new ArrayList<>(skipped);
+		done.forEach(d -> names.add((String) d.get("name")));
+		return names.stream().sorted().toList();
+	}
+
+	/** Recordings not encoded yet, each with why. */
+	synchronized List<Map<String, Object>> notEncoded() {
+		List<Map<String, Object>> left = new ArrayList<>(pending);
+		left.addAll(failed);
+		left.sort(java.util.Comparator.comparing(m -> (String) m.get("name")));
+		return left;
 	}
 
 	private String progress() {
-		return (done.size() + failed.size() + skipped.size()) + "/" + total;
+		return (done.size() + failed.size() + pending.size() + skipped.size()) + "/" + total;
 	}
 }

@@ -36,6 +36,17 @@ class RecordingLayoutTest {
 		}
 	}
 
+	@Test
+	void sessionDurationComesFromSessionJson() throws IOException {
+		Path dir = Files.createDirectories(Path.of("layout-session")).toAbsolutePath();
+		write(dir.resolve("0000.mcrec"), 0, 10);
+		Files.writeString(dir.resolve("session.json"),
+			"{\"startedEpochMillis\": 1000, \"endedEpochMillis\": 61500, \"segments\": [{\"file\": \"0000.mcrec\"}]}");
+		assertEquals(60_500L, Recording.open(dir).durationMillis().orElseThrow());
+		assertEquals(-1L, Recording.sessionDurationMillis("{\"startedEpochMillis\": 1000}"));
+		assertTrue(Recording.open(dir.resolve("0000.mcrec")).durationMillis().isEmpty(), "a bare .mcrec has no session length");
+	}
+
 	private static void write(Path file, int from, int count) throws IOException {
 		JsonObject json = new JsonObject();
 		json.addProperty("formatVersion", 1);

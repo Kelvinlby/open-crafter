@@ -121,6 +121,13 @@ val encoderWorkerLaunch = tasks.register("encoderWorkerLaunch") {
 	}
 }
 
+// The encode command as given (without -Pforce), for the marker a run leaves when the disk fills up.
+fun resumeCommand(): String {
+	val names = listOf("input", "output", "workers", "config", "profile", "display", "retries", "stallMinutes", "reserveGb")
+	val props = names.mapNotNull { name -> providers.gradleProperty(name).orNull?.let { "-P$name=$it" } }
+	return (listOf("cd", rootDir.absolutePath, "&&", "./gradlew", "encode") + props).joinToString(" ")
+}
+
 // ./gradlew encode -Pinput=<recordings dir or file> -Poutput=<datasets dir> [-Pworkers=N] [-Pconfig=encoder.json]
 tasks.register<JavaExec>("encode") {
 	description = "Replays packet recordings in parallel headless clients and writes datasets."
@@ -147,7 +154,9 @@ tasks.register<JavaExec>("encode") {
 			providers.gradleProperty("display").orNull?.let { "--display=$it" },
 			providers.gradleProperty("retries").orNull?.let { "--retries=$it" },
 			providers.gradleProperty("stallMinutes").orNull?.let { "--stall-minutes=$it" },
-			providers.gradleProperty("force").orNull?.let { "--force" }
+			providers.gradleProperty("force").orNull?.let { "--force" },
+			providers.gradleProperty("reserveGb").orNull?.let { "--reserve-gb=$it" },
+			"--resume-command=" + resumeCommand()
 		))
 	}
 }
